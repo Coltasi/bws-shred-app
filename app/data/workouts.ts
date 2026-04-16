@@ -77,11 +77,11 @@ export const workouts: Record<string, Workout> = {
         notes: "Set cables at top. Slight forward lean, arms slightly bent, sweep down and together. Feel the stretch at the top.",
       },
       {
-        name: "Lying Face Pulls",
+        name: "Cable Rear Delt Flyes",
         sets: "3",
         reps: "10–12",
         rest: "90 sec",
-        notes: "Lie face-up under cable. Pull rope to forehead with elbows flared high. Targets rear delts and external rotators. Prehab movement.",
+        notes: "Set cables at shoulder height, cross the handles. Arms slightly bent, open wide sweeping back. Squeeze rear delts at peak. Control the return — don't let the cable pull you.",
       },
     ],
   },
@@ -206,11 +206,11 @@ export const workouts: Record<string, Workout> = {
         notes: "Face into the machine, arms slightly bent. Open arms wide sweeping outward. Targets rear delts. Control the return.",
       },
       {
-        name: "Kneeling Face Pulls",
+        name: "Cable Rear Delt Flyes",
         sets: "4",
         reps: "10–15",
         rest: "90 sec",
-        notes: "Kneel facing cable set at head height with rope. Pull to forehead, elbows flaring up and out, making a 'W' shape. Prehab movement.",
+        notes: "Set cables at shoulder height, cross the handles. Arms slightly bent, open wide sweeping back. Squeeze rear delts at peak. Control the return — don't let the cable pull you.",
       },
       {
         name: "Incline Dumbbell Curls",
