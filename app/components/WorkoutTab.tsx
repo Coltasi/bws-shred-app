@@ -10,8 +10,46 @@ function getRotationIndex(): number {
   return parseInt(localStorage.getItem(ROTATION_KEY) || "0", 10) % workoutRotation.length;
 }
 
-type SetCheck = Record<string, boolean>;
+// ── Types ──────────────────────────────────────────────────────────────────
+type SetData = {
+  done: boolean;
+  weight: string; // kg, stored as string for input binding
+  reps: string;
+};
 
+type ExerciseLog = Record<string, SetData[]>; // exerciseName → sets
+
+// ── localStorage helpers ───────────────────────────────────────────────────
+function sessionKey(workoutKey: string)  { return `bws-session-${workoutKey}`; }
+function historyKey(workoutKey: string)  { return `bws-history-${workoutKey}`; }
+
+function loadSession(workoutKey: string): ExerciseLog {
+  try { return JSON.parse(localStorage.getItem(sessionKey(workoutKey)) || "{}"); }
+  catch { return {}; }
+}
+
+function saveSession(workoutKey: string, log: ExerciseLog) {
+  localStorage.setItem(sessionKey(workoutKey), JSON.stringify(log));
+}
+
+function loadHistory(workoutKey: string): ExerciseLog {
+  try { return JSON.parse(localStorage.getItem(historyKey(workoutKey)) || "{}"); }
+  catch { return {}; }
+}
+
+function archiveSession(workoutKey: string, log: ExerciseLog) {
+  const hasData = Object.values(log).some(sets => sets.some(s => s.weight.trim() !== ""));
+  if (hasData) localStorage.setItem(historyKey(workoutKey), JSON.stringify(log));
+}
+
+function initSets(ex: Exercise, saved: SetData[] | undefined): SetData[] {
+  const count = parseInt(ex.sets) || 3;
+  return Array.from({ length: count }, (_, i) =>
+    saved?.[i] ?? { done: false, weight: "", reps: "" }
+  );
+}
+
+// ── Color map ──────────────────────────────────────────────────────────────
 const colorMap: Record<string, string> = {
   blue:   "text-blue-400 bg-blue-400/10 border-blue-500/30",
   green:  "text-green-400 bg-green-400/10 border-green-500/30",
@@ -20,12 +58,14 @@ const colorMap: Record<string, string> = {
   red:    "text-red-400 bg-red-400/10 border-red-500/30",
 };
 
+// ── Component ──────────────────────────────────────────────────────────────
 export default function WorkoutTab() {
-  const [selectedKey, setSelectedKey] = useState<string>("Upper");
-  const [rotationIdx, setRotationIdx] = useState(0);
-  const [checkedSets, setCheckedSets]   = useState<SetCheck>({});
-  const [timer, setTimer]               = useState<number | null>(null);
-  const [timerRunning, setTimerRunning] = useState(false);
+  const [selectedKey, setSelectedKey]       = useState<string>("Upper");
+  const [rotationIdx, setRotationIdx]       = useState(0);
+  const [session, setSession]               = useState<ExerciseLog>({});
+  const [history, setHistory]               = useState<ExerciseLog>({});
+  const [timer, setTimer]                   = useState<number | null>(null);
+  const [timerRunning, setTimerRunning]     = useState(false);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -36,11 +76,10 @@ export default function WorkoutTab() {
   }, []);
 
   useEffect(() => {
-    if (selectedKey) {
-      const saved = localStorage.getItem(`bws-workout-${selectedKey}`);
-      setCheckedSets(saved ? JSON.parse(saved) : {});
-      setExpandedExercise(null);
-    }
+    if (!selectedKey) return;
+    setSession(loadSession(selectedKey));
+    setHistory(loadHistory(selectedKey));
+    setExpandedExercise(null);
   }, [selectedKey]);
 
   useEffect(() => {
@@ -61,18 +100,35 @@ export default function WorkoutTab() {
 
   const workout = workouts[selectedKey];
 
-  const toggleSet = (exerciseName: string, setIndex: number) => {
-    const key = `${exerciseName}-set-${setIndex}`;
-    const updated = { ...checkedSets, [key]: !checkedSets[key] };
-    setCheckedSets(updated);
-    localStorage.setItem(`bws-workout-${selectedKey}`, JSON.stringify(updated));
-  };
+  // ── Set helpers ────────────────────────────────────────────────────────
+  function getSets(ex: Exercise): SetData[] {
+    return initSets(ex, session[ex.name]);
+  }
 
-  const resetWorkout = () => {
-    setCheckedSets({});
-    localStorage.removeItem(`bws-workout-${selectedKey}`);
-  };
+  function updateSet(ex: Exercise, setIdx: number, patch: Partial<SetData>) {
+    const current = getSets(ex);
+    const updated = current.map((s, i) => i === setIdx ? { ...s, ...patch } : s);
+    const newSession = { ...session, [ex.name]: updated };
+    setSession(newSession);
+    saveSession(selectedKey, newSession);
+  }
 
+  function toggleDone(ex: Exercise, setIdx: number) {
+    const sets = getSets(ex);
+    const wasDone = sets[setIdx].done;
+    updateSet(ex, setIdx, { done: !wasDone });
+    if (!wasDone && ex.rest) startRestTimer(parseRestTime(ex.rest));
+  }
+
+  function resetWorkout() {
+    archiveSession(selectedKey, session);
+    const cleared: ExerciseLog = {};
+    setSession(cleared);
+    saveSession(selectedKey, cleared);
+    setHistory(loadHistory(selectedKey));
+  }
+
+  // ── Timer ──────────────────────────────────────────────────────────────
   const startRestTimer = (seconds: number) => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     setTimer(seconds);
@@ -87,21 +143,9 @@ export default function WorkoutTab() {
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-  const getExerciseCompletion = (ex: Exercise) => {
-    const setCount = parseInt(ex.sets) || 3;
-    const done = Array.from({ length: setCount }).filter((_, i) =>
-      checkedSets[`${ex.name}-set-${i}`]
-    ).length;
-    return { done, total: setCount };
-  };
-
+  // ── Progress ───────────────────────────────────────────────────────────
   const totalSets = workout?.exercises.reduce((acc, ex) => acc + (parseInt(ex.sets) || 3), 0) ?? 0;
-  const doneSets  = workout?.exercises.reduce((acc, ex) => {
-    const setCount = parseInt(ex.sets) || 3;
-    return acc + Array.from({ length: setCount }).filter((_, i) =>
-      checkedSets[`${ex.name}-set-${i}`]
-    ).length;
-  }, 0) ?? 0;
+  const doneSets  = workout?.exercises.reduce((acc, ex) => acc + getSets(ex).filter(s => s.done).length, 0) ?? 0;
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -137,9 +181,9 @@ export default function WorkoutTab() {
         </div>
       </div>
 
-      {/* Workout Header */}
       {workout && (
         <>
+          {/* Workout Header */}
           <div className={`rounded-2xl p-4 border ${colorMap[workout.color] || "text-yellow-400 bg-yellow-400/10 border-yellow-500/30"}`}>
             <div className="flex items-center justify-between">
               <div>
@@ -155,9 +199,7 @@ export default function WorkoutTab() {
                 <p className="text-2xl font-bold">{doneSets}/{totalSets}</p>
                 <p className="text-xs opacity-70">sets done</p>
                 {doneSets > 0 && (
-                  <button onClick={resetWorkout} className="text-xs opacity-50 hover:opacity-80 mt-1">
-                    reset
-                  </button>
+                  <button onClick={resetWorkout} className="text-xs opacity-50 hover:opacity-80 mt-1">reset</button>
                 )}
               </div>
             </div>
@@ -182,7 +224,7 @@ export default function WorkoutTab() {
             }`}>
               {timer === 0 ? (
                 <div>
-                  <p className="text-2xl font-bold">✓ Rest Complete!</p>
+                  <p className="text-2xl font-bold">Rest Complete!</p>
                   <button onClick={stopTimer} className="mt-2 text-xs text-gray-400 hover:text-gray-300">Dismiss</button>
                 </div>
               ) : (
@@ -211,10 +253,18 @@ export default function WorkoutTab() {
           {/* Exercise List */}
           <div className="space-y-3">
             {workout.exercises.map((ex, exIdx) => {
-              const { done, total } = getExerciseCompletion(ex);
+              const sets       = getSets(ex);
+              const done       = sets.filter(s => s.done).length;
+              const total      = sets.length;
               const isComplete = done === total;
               const isExpanded = expandedExercise === ex.name;
-              const setCount = parseInt(ex.sets) || 3;
+              const prevSets   = history[ex.name];
+
+              // Best weight from last session (for header hint)
+              const lastBest = prevSets?.reduce<SetData | null>((b, s) => {
+                if (!s.weight) return b;
+                return !b || parseFloat(s.weight) > parseFloat(b.weight || "0") ? s : b;
+              }, null);
 
               return (
                 <div
@@ -223,6 +273,7 @@ export default function WorkoutTab() {
                     isComplete ? "border-green-500/30" : "border-gray-800"
                   }`}
                 >
+                  {/* Header row */}
                   <button
                     onClick={() => setExpandedExercise(isExpanded ? null : ex.name)}
                     className="w-full flex items-center gap-3 p-4 text-left"
@@ -240,6 +291,11 @@ export default function WorkoutTab() {
                         {ex.sets} sets × {ex.reps}
                         {ex.rest && <span className="ml-2 text-blue-400/70">· {ex.rest} rest</span>}
                       </p>
+                      {lastBest && (
+                        <p className="text-[11px] text-yellow-400/60 mt-0.5">
+                          Last: {lastBest.weight}kg × {lastBest.reps || "?"} reps
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs font-semibold ${isComplete ? "text-green-400" : "text-gray-500"}`}>
@@ -249,65 +305,99 @@ export default function WorkoutTab() {
                     </div>
                   </button>
 
+                  {/* Expanded: weight/reps per set */}
                   {isExpanded && (
-                    <div className="px-4 pb-4 space-y-2 border-t border-gray-800/50 pt-3">
+                    <div className="px-4 pb-4 space-y-3 border-t border-gray-800/50 pt-3">
                       {ex.notes && (
-                        <p className="text-xs text-yellow-400/80 bg-yellow-400/5 rounded-lg px-3 py-2 mb-3">
-                          💡 {ex.notes}
+                        <p className="text-xs text-yellow-400/80 bg-yellow-400/5 rounded-lg px-3 py-2">
+                          {ex.notes}
                         </p>
                       )}
-                      <div className="grid gap-2">
-                        {Array.from({ length: setCount }).map((_, setIdx) => {
-                          const key = `${ex.name}-set-${setIdx}`;
-                          const checked = checkedSets[key] || false;
-                          return (
-                            <button
-                              key={setIdx}
-                              onClick={() => {
-                                toggleSet(ex.name, setIdx);
-                                if (!checked && ex.rest) {
-                                  const restSecs = parseRestTime(ex.rest);
-                                  if (restSecs > 0) startRestTimer(restSecs);
-                                }
-                              }}
-                              className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                                checked
-                                  ? "bg-green-500/10 border-green-500/20 text-green-400"
-                                  : "bg-gray-900/50 border-gray-800 text-gray-300 hover:border-gray-600"
-                              }`}
-                            >
-                              <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs flex-shrink-0 ${
-                                checked ? "bg-green-500 text-white" : "bg-gray-800 text-gray-500"
-                              }`}>
-                                {checked ? "✓" : setIdx + 1}
-                              </span>
-                              <span className="text-sm font-medium">
-                                Set {setIdx + 1}
-                                <span className="text-gray-500 ml-2 font-normal">× {ex.reps}</span>
-                              </span>
-                              {checked && ex.rest && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    startRestTimer(parseRestTime(ex.rest!));
-                                  }}
-                                  className="ml-auto text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-2 py-1 rounded-lg"
-                                >
-                                  ⏱ Rest
-                                </button>
-                              )}
-                            </button>
-                          );
-                        })}
+
+                      {/* Column headers */}
+                      <div className="grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 px-1">
+                        <div />
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider">Set</p>
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">kg</p>
+                        <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">Reps</p>
+                        <div />
                       </div>
+
+                      {sets.map((setData, setIdx) => {
+                        const prev = prevSets?.[setIdx];
+                        return (
+                          <div key={setIdx} className="space-y-0.5">
+                            <div className={`grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 items-center rounded-xl p-2 transition-all ${
+                              setData.done
+                                ? "bg-green-500/5 border border-green-500/20"
+                                : "bg-gray-900/50 border border-gray-800"
+                            }`}>
+                              {/* Set number badge */}
+                              <span className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold ${
+                                setData.done ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"
+                              }`}>
+                                {setIdx + 1}
+                              </span>
+
+                              {/* Label */}
+                              <span className={`text-sm font-medium ${setData.done ? "text-gray-500" : "text-gray-200"}`}>
+                                Set {setIdx + 1}
+                              </span>
+
+                              {/* Weight */}
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                placeholder={prev?.weight || "—"}
+                                value={setData.weight}
+                                onChange={e => updateSet(ex, setIdx, { weight: e.target.value })}
+                                onClick={e => e.stopPropagation()}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50"
+                              />
+
+                              {/* Reps */}
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                placeholder={prev?.reps || ex.reps.split(/[-–]/)[0]}
+                                value={setData.reps}
+                                onChange={e => updateSet(ex, setIdx, { reps: e.target.value })}
+                                onClick={e => e.stopPropagation()}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50"
+                              />
+
+                              {/* Done button */}
+                              <button
+                                onClick={() => toggleDone(ex, setIdx)}
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-sm ${
+                                  setData.done
+                                    ? "bg-green-500 text-white"
+                                    : "bg-gray-700 text-gray-500 hover:bg-gray-600"
+                                }`}
+                              >
+                                {setData.done ? "✓" : "·"}
+                              </button>
+                            </div>
+
+                            {/* Per-set last time hint */}
+                            {prev?.weight && (
+                              <p className="text-[10px] text-gray-600 pl-10">
+                                Last: {prev.weight}kg × {prev.reps || "?"} reps
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Rest timer shortcut */}
                       {ex.rest && (
-                        <div className="flex gap-2 pt-1">
-                          <p className="text-xs text-gray-500 flex-1">Rest: {ex.rest}</p>
+                        <div className="flex items-center justify-between pt-1">
+                          <p className="text-xs text-gray-500">Rest: {ex.rest}</p>
                           <button
                             onClick={() => startRestTimer(parseRestTime(ex.rest!))}
-                            className="text-xs text-blue-400 hover:text-blue-300"
+                            className="text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-3 py-1 rounded-lg"
                           >
-                            Start rest timer →
+                            Start rest timer
                           </button>
                         </div>
                       )}
@@ -318,13 +408,19 @@ export default function WorkoutTab() {
             })}
           </div>
 
+          {/* Completion banner */}
           {doneSets === totalSets && totalSets > 0 && (
             <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-5 text-center">
-              <p className="text-3xl mb-2">🎉</p>
               <p className="text-lg font-bold text-green-400">Workout Complete!</p>
               <p className="text-xs text-gray-400 mt-1">
-                All {totalSets} sets crushed. Mark it done on the Today tab to advance your rotation.
+                All {totalSets} sets done. Mark it on the Today tab to advance your rotation.
               </p>
+              <button
+                onClick={resetWorkout}
+                className="mt-3 text-xs text-gray-500 hover:text-gray-300 bg-gray-800 px-4 py-2 rounded-lg"
+              >
+                Save & reset for next session
+              </button>
             </div>
           )}
         </>
