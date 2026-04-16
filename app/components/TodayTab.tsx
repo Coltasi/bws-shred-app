@@ -55,6 +55,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
   const [sleepHours, setSleepHours] = useState<number | null>(null);
   const [lunchDone, setLunchDone]   = useState(false);
   const [dinnerDone, setDinnerDone] = useState(false);
+  const [swimMeters, setSwimMeters] = useState<number>(0);
 
   const dateKey = new Date().toDateString();
 
@@ -73,6 +74,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
       setLunchDone(p.lunchDone || false);
       setDinnerDone(p.dinnerDone || false);
       if (p.selectedWorkoutKey) setSelectedWorkoutKey(p.selectedWorkoutKey);
+      if (p.swimMeters) setSwimMeters(p.swimMeters);
     }
   }, [dateKey]);
 
@@ -267,8 +269,40 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
       )}
 
       {/* Active Recovery */}
-      {activity === "swim" && <ActiveCard title="Swim Session" color="blue"
-        tip="Aim for 20–40 min of continuous laps. Great full-body cardio with zero joint impact." />}
+      {activity === "swim" && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 space-y-4">
+          <h3 className="font-bold text-white">Swim Session</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-3xl font-bold text-blue-400">{swimMeters}<span className="text-lg ml-1 font-normal text-blue-300">m</span></p>
+              <p className="text-xs text-gray-500 mt-0.5">{swimMeters >= 1000 ? `${(swimMeters / 1000).toFixed(1)}km` : `${Math.round(swimMeters / 25)} lengths (25m pool)`}</p>
+            </div>
+            <div className="flex gap-2">
+              {[100, 250, 500].map(n => (
+                <button key={n}
+                  onClick={() => { const v = swimMeters + n; setSwimMeters(v); persist({ swimMeters: v }); }}
+                  className="px-3 py-2 rounded-xl bg-blue-500/20 text-blue-300 text-sm font-semibold hover:bg-blue-500/30">
+                  +{n}
+                </button>
+              ))}
+            </div>
+          </div>
+          {swimMeters > 0 && (
+            <div className="h-2 bg-blue-900/40 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-400 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min((swimMeters / 2000) * 100, 100)}%` }} />
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-blue-300/60">Goal: 2000m / session</p>
+            {swimMeters > 0 && (
+              <button onClick={() => { setSwimMeters(0); persist({ swimMeters: 0 }); }}
+                className="text-xs text-gray-600 hover:text-gray-400">Reset</button>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">Great full-body cardio with zero joint impact.</p>
+        </div>
+      )}
       {activity === "bike" && <ActiveCard title="Mountain Bike" color="green"
         tip="Any length counts. The elevation changes and resistance burn serious calories — enjoy it." />}
       {activity === "rest" && <ActiveCard title="Rest Day" color="gray"
