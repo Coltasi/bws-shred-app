@@ -51,6 +51,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
   const [waterCount, setWaterCount] = useState(0);
   const [workoutDone, setWorkoutDone] = useState(false);
   const [rotationIdx, setRotationIdx] = useState(0);
+  const [selectedWorkoutKey, setSelectedWorkoutKey] = useState<string>("");
   const [sleepHours, setSleepHours] = useState<number | null>(null);
   const [lunchDone, setLunchDone]   = useState(false);
   const [dinnerDone, setDinnerDone] = useState(false);
@@ -58,7 +59,9 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
   const dateKey = new Date().toDateString();
 
   useEffect(() => {
-    setRotationIdx(getRotationIndex());
+    const idx = getRotationIndex();
+    setRotationIdx(idx);
+    setSelectedWorkoutKey(workoutRotation[idx]);
     const saved = localStorage.getItem(`bws-today-${dateKey}`);
     if (saved) {
       const p = JSON.parse(saved);
@@ -69,6 +72,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
       setSleepHours(p.sleep ?? null);
       setLunchDone(p.lunchDone || false);
       setDinnerDone(p.dinnerDone || false);
+      if (p.selectedWorkoutKey) setSelectedWorkoutKey(p.selectedWorkoutKey);
     }
   }, [dateKey]);
 
@@ -102,7 +106,12 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
   };
 
   const nextWorkoutKey = workoutRotation[rotationIdx];
-  const nextWorkout = workouts[nextWorkoutKey];
+  const chosenWorkout = workouts[selectedWorkoutKey] || workouts[nextWorkoutKey];
+
+  const pickWorkout = (key: string) => {
+    setSelectedWorkoutKey(key);
+    persist({ selectedWorkoutKey: key });
+  };
 
   const breakfastDone = BREAKFAST.filter(b => checkedMeals[b.key]).length;
   const activityDone = workoutDone || activity === "swim" || activity === "bike";
@@ -191,38 +200,68 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
 
       {/* Lift Panel */}
       {activity === "lift" && (
-        <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider">Next in rotation</p>
-              <h3 className="font-bold text-white text-lg mt-0.5">
-                {nextWorkout.emoji} {nextWorkout.name}
-              </h3>
+        <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4 space-y-4">
+          {/* Workout picker */}
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Which workout today?</p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {workoutRotation.map((key) => {
+                const w = workouts[key];
+                const isSelected = selectedWorkoutKey === key;
+                const isSuggested = key === nextWorkoutKey;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => pickWorkout(key)}
+                    className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl border text-xs font-semibold transition-all min-w-[60px] ${
+                      isSelected
+                        ? "bg-yellow-400 text-black border-yellow-400"
+                        : isSuggested
+                        ? "bg-yellow-400/10 text-yellow-300 border-yellow-500/30"
+                        : "bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-500"
+                    }`}
+                  >
+                    <span className="text-base">{w.emoji}</span>
+                    <span className="mt-0.5 uppercase tracking-tight">{key}</span>
+                    {isSuggested && !isSelected && (
+                      <span className="text-[9px] text-yellow-400 mt-0.5">suggested</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <button onClick={() => onNavigate("workout")}
-              className="text-xs text-yellow-400 border border-yellow-500/30 px-3 py-1.5 rounded-lg hover:bg-yellow-400/10">
-              Open →
-            </button>
           </div>
-          <div className="space-y-1.5 mb-4">
-            {nextWorkout.exercises.slice(0, 4).map((ex, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
-                <span className="text-yellow-400 font-mono text-xs w-4">{i + 1}.</span>
-                <span className="flex-1 truncate">{ex.name}</span>
-                <span className="text-gray-500 text-xs">{ex.sets}×{ex.reps}</span>
-              </div>
-            ))}
-            {nextWorkout.exercises.length > 4 && (
-              <p className="text-xs text-gray-500 pl-6">+ {nextWorkout.exercises.length - 4} more</p>
-            )}
+
+          {/* Chosen workout preview */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-white">{chosenWorkout.emoji} {chosenWorkout.name}</h3>
+              <button onClick={() => onNavigate("workout")}
+                className="text-xs text-yellow-400 border border-yellow-500/30 px-3 py-1.5 rounded-lg hover:bg-yellow-400/10">
+                Open →
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {chosenWorkout.exercises.slice(0, 4).map((ex, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
+                  <span className="text-yellow-400 font-mono text-xs w-4">{i + 1}.</span>
+                  <span className="flex-1 truncate">{ex.name}</span>
+                  <span className="text-gray-500 text-xs">{ex.sets}×{ex.reps}</span>
+                </div>
+              ))}
+              {chosenWorkout.exercises.length > 4 && (
+                <p className="text-xs text-gray-500 pl-6">+ {chosenWorkout.exercises.length - 4} more</p>
+              )}
+            </div>
           </div>
+
           <button onClick={markWorkoutDone}
             className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
               workoutDone
                 ? "bg-green-500/20 text-green-400 border border-green-500/30"
                 : "bg-yellow-400 text-black hover:bg-yellow-300"
             }`}>
-            {workoutDone ? `Done! Next: ${workoutRotation[(rotationIdx) % workoutRotation.length]}` : "Mark Workout Complete"}
+            {workoutDone ? `Done! Next suggested: ${workoutRotation[(rotationIdx) % workoutRotation.length]}` : "Mark Workout Complete"}
           </button>
         </div>
       )}
