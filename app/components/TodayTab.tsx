@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { workouts, workoutRotation } from "../data/workouts";
 
-type Tab = "today" | "workout" | "meals" | "recipes" | "progress";
+type Tab = "today" | "workout" | "progress";
 type ActivityType = "lift" | "swim" | "bike" | "rest" | null;
 
 interface TodayTabProps {
@@ -351,8 +351,6 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
             <p className={`text-sm font-medium ${lunchDone ? "line-through text-gray-500" : "text-white"}`}>Meal prep lunch</p>
             <p className="text-xs text-gray-500">One of your 5 prepped containers</p>
           </div>
-          <button onClick={(e) => { e.stopPropagation(); onNavigate("meals"); }}
-            className="text-xs text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded-lg">Plan</button>
         </button>
         <button onClick={() => { setDinnerDone(!dinnerDone); persist({ dinnerDone: !dinnerDone }); }}
           className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all text-left ${
@@ -365,8 +363,6 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
             <p className={`text-sm font-medium ${dinnerDone ? "line-through text-gray-500" : "text-white"}`}>Dinner</p>
             <p className="text-xs text-gray-500">Home-cooked — check Recipes tab for ideas</p>
           </div>
-          <button onClick={(e) => { e.stopPropagation(); onNavigate("recipes"); }}
-            className="text-xs text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded-lg">Recipes</button>
         </button>
       </div>
 
