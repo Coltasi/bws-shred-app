@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { workouts, workoutRotation } from "../data/workouts";
 
 type WeightEntry = { date: string; weight: number };
-type DailyLog = { date: string; workoutDone: boolean; mealsCompleted: number; totalMeals: number; waterCount: number };
+type DailyLog = { date: string; workoutDone: boolean; waterCount: number };
+type SetData = { done: boolean; weight: string; reps: string };
+type ExerciseLog = Record<string, SetData[]>;
 
 function getDateKey(offset = 0): string {
   const d = new Date();
@@ -19,38 +22,51 @@ function getLast7Days(): string[] {
   return Array.from({ length: 7 }, (_, i) => getDateKey(6 - i));
 }
 
+function getBestSet(sets: SetData[]): SetData | null {
+  const doneSets = sets.filter(s => s.done && s.weight);
+  if (doneSets.length === 0) return null;
+  return doneSets.reduce((best, s) =>
+    parseFloat(s.weight) > parseFloat(best.weight) ? s : best
+  );
+}
+
 export default function ProgressTab() {
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([]);
   const [newWeight, setNewWeight] = useState("");
   const [dailyLogs, setDailyLogs] = useState<DailyLog[]>([]);
-  const [activeSection, setActiveSection] = useState<"overview" | "weight" | "streak">("overview");
+  const [activeSection, setActiveSection] = useState<"overview" | "weight" | "strength" | "streak">("overview");
+  const [selectedWorkout, setSelectedWorkout] = useState<string>("Upper");
+  const [historyData, setHistoryData] = useState<Record<string, ExerciseLog>>({});
 
   const todayKey = getDateKey(0);
 
   useEffect(() => {
-    // Load weight entries
     const saved = localStorage.getItem("bws-weight-log");
     if (saved) setWeightEntries(JSON.parse(saved));
 
-    // Build daily logs from last 14 days of today data
     const logs: DailyLog[] = [];
     for (let i = 0; i < 14; i++) {
       const key = getDateKey(i);
       const raw = localStorage.getItem(`bws-today-${key}`);
       if (raw) {
         const parsed = JSON.parse(raw);
-        const meals = parsed.meals || {};
-        const mealsCompleted = Object.values(meals).filter(Boolean).length;
         logs.push({
           date: key,
           workoutDone: parsed.workoutDone || false,
-          mealsCompleted,
-          totalMeals: 10, // 3 breakfast + 3 lunch + 4 dinner options
           waterCount: parsed.water || 0,
         });
       }
     }
     setDailyLogs(logs);
+
+    const history: Record<string, ExerciseLog> = {};
+    for (const key of workoutRotation) {
+      const raw = localStorage.getItem(`bws-history-${key}`);
+      if (raw) {
+        try { history[key] = JSON.parse(raw); } catch { /* skip */ }
+      }
+    }
+    setHistoryData(history);
   }, []);
 
   const addWeight = () => {
@@ -71,19 +87,15 @@ export default function ProgressTab() {
     localStorage.setItem("bws-weight-log", JSON.stringify(updated));
   };
 
-  // Stats calculations
   const last7 = getLast7Days();
+
   const workoutStreak = (() => {
     let streak = 0;
     for (let i = 0; i < 30; i++) {
       const key = getDateKey(i);
       const log = dailyLogs.find(l => l.date === key);
-      // Skip Sundays (rest days)
       const dayOfWeek = new Date(key).getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 3) { // Sun or Wed = rest days
-        streak++;
-        continue;
-      }
+      if (dayOfWeek === 0 || dayOfWeek === 3) { streak++; continue; }
       if (log?.workoutDone) streak++;
       else break;
     }
@@ -91,8 +103,8 @@ export default function ProgressTab() {
   })();
 
   const weeklyWorkouts = last7.filter(d => {
-    const dayOfWeek = new Date(d).getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 3) return true; // rest days count
+    const dow = new Date(d).getDay();
+    if (dow === 0 || dow === 3) return true;
     return dailyLogs.find(l => l.date === d)?.workoutDone;
   }).length;
 
@@ -104,26 +116,30 @@ export default function ProgressTab() {
   const currentWeight = weightEntries.length > 0 ? weightEntries[weightEntries.length - 1].weight : null;
   const weightChange = startWeight && currentWeight ? +(currentWeight - startWeight).toFixed(1) : null;
 
-  // Mini chart data (last 7 weight entries)
   const last7Weights = weightEntries.slice(-7);
-  const minW = last7Weights.length > 0 ? Math.min(...last7Weights.map(e => e.weight)) - 1 : 100;
-  const maxW = last7Weights.length > 0 ? Math.max(...last7Weights.map(e => e.weight)) + 1 : 200;
+  const minW = last7Weights.length > 0 ? Math.min(...last7Weights.map(e => e.weight)) - 2 : 100;
+  const maxW = last7Weights.length > 0 ? Math.max(...last7Weights.map(e => e.weight)) + 2 : 200;
 
   const sections = [
     { id: "overview", label: "Overview" },
-    { id: "weight", label: "Weight Log" },
-    { id: "streak", label: "Streaks" },
+    { id: "weight",   label: "Weight" },
+    { id: "strength", label: "Strength" },
+    { id: "streak",   label: "Streaks" },
   ] as const;
+
+  const workoutExercises = workouts[selectedWorkout]?.exercises ?? [];
+  const lastSession = historyData[selectedWorkout] ?? {};
+  const hasAnyHistory = workoutRotation.some(k => historyData[k] && Object.keys(historyData[k]).length > 0);
 
   return (
     <div className="px-4 py-4 space-y-4">
       {/* Section Tabs */}
-      <div className="flex bg-gray-900 rounded-xl p-1">
+      <div className="flex bg-gray-900 rounded-xl p-1 gap-0.5">
         {sections.map(s => (
           <button
             key={s.id}
             onClick={() => setActiveSection(s.id)}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`flex-1 py-2 text-[11px] font-semibold rounded-lg transition-all ${
               activeSection === s.id ? "bg-yellow-400 text-black" : "text-gray-400 hover:text-gray-300"
             }`}
           >
@@ -132,32 +148,13 @@ export default function ProgressTab() {
         ))}
       </div>
 
-      {/* OVERVIEW */}
+      {/* ── OVERVIEW ── */}
       {activeSection === "overview" && (
         <>
-          {/* Key Stats */}
           <div className="grid grid-cols-2 gap-3">
-            <StatBox
-              label="Workout Streak"
-              value={`${workoutStreak}`}
-              unit="days"
-              emoji="🔥"
-              color="orange"
-            />
-            <StatBox
-              label="This Week"
-              value={`${weeklyWorkouts}/7`}
-              unit="days"
-              emoji="💪"
-              color="yellow"
-            />
-            <StatBox
-              label="Avg Water"
-              value={`${avgWater}`}
-              unit="glasses/day"
-              emoji="💧"
-              color="blue"
-            />
+            <StatBox label="Workout Streak" value={`${workoutStreak}`} unit="days" emoji="🔥" color="orange" />
+            <StatBox label="This Week" value={`${weeklyWorkouts}/7`} unit="days" emoji="💪" color="yellow" />
+            <StatBox label="Avg Water" value={`${avgWater}`} unit="glasses/day" emoji="💧" color="blue" />
             <StatBox
               label="Weight Change"
               value={weightChange !== null ? (weightChange <= 0 ? `${weightChange}` : `+${weightChange}`) : "—"}
@@ -167,7 +164,6 @@ export default function ProgressTab() {
             />
           </div>
 
-          {/* Last 7 Days Activity */}
           <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
             <h3 className="font-bold text-white text-sm mb-3">Last 7 Days</h3>
             <div className="flex justify-between gap-1">
@@ -184,22 +180,16 @@ export default function ProgressTab() {
                     <div className="text-[9px] text-gray-500 font-semibold">
                       {d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 1)}
                     </div>
-                    <div className={`w-full aspect-square rounded-lg flex items-center justify-center text-base ${
+                    <div className={`w-full aspect-square rounded-lg flex items-center justify-center text-sm ${
                       !log && !isToday ? "bg-gray-900 text-gray-700" :
                       isRest ? "bg-purple-500/20 text-purple-400" :
                       hasWorkout ? "bg-green-500/20 text-green-400" :
                       "bg-red-500/10 text-gray-600"
                     }`}>
-                      {!log && !isToday ? "·" :
-                       isRest ? "🛌" :
-                       hasWorkout ? "✓" : "○"}
+                      {!log && !isToday ? "·" : isRest ? "🛌" : hasWorkout ? "✓" : "○"}
                     </div>
-                    {/* Water bar */}
                     <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-400 rounded-full"
-                        style={{ width: `${waterPct * 100}%` }}
-                      />
+                      <div className="h-full bg-blue-400 rounded-full" style={{ width: `${waterPct * 100}%` }} />
                     </div>
                     {isToday && <div className="w-1 h-1 rounded-full bg-yellow-400" />}
                   </div>
@@ -207,18 +197,17 @@ export default function ProgressTab() {
               })}
             </div>
             <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-600">
-              <span>✓ = workout done</span>
-              <span className="text-blue-400">— = water</span>
-              <span>🛌 = rest</span>
+              <span>✓ workout</span>
+              <span className="text-blue-400">— water</span>
+              <span>🛌 rest</span>
             </div>
           </div>
         </>
       )}
 
-      {/* WEIGHT LOG */}
+      {/* ── WEIGHT LOG ── */}
       {activeSection === "weight" && (
         <>
-          {/* Add Entry */}
           <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
             <h3 className="font-bold text-white text-sm mb-3">Log Today&apos;s Weight</h3>
             <div className="flex gap-2">
@@ -245,34 +234,47 @@ export default function ProgressTab() {
             </div>
           </div>
 
-          {/* Mini Chart */}
           {last7Weights.length > 1 && (
             <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-              <h3 className="font-bold text-white text-sm mb-3">Weight Trend</h3>
-              <div className="relative h-20">
-                <svg className="w-full h-full" viewBox="0 0 300 80" preserveAspectRatio="none">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-white text-sm">Weight Trend</h3>
+                {weightChange !== null && (
+                  <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                    weightChange < 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
+                  }`}>
+                    {weightChange <= 0 ? weightChange : `+${weightChange}`} lbs total
+                  </span>
+                )}
+              </div>
+              <div className="relative h-24">
+                <svg className="w-full h-full" viewBox="0 0 300 96" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
                       <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
                     </linearGradient>
                   </defs>
-                  {last7Weights.length > 1 && (() => {
+                  {(() => {
                     const pts = last7Weights.map((e, i) => {
                       const x = (i / (last7Weights.length - 1)) * 290 + 5;
-                      const y = 75 - ((e.weight - minW) / (maxW - minW)) * 70;
+                      const y = 88 - ((e.weight - minW) / (maxW - minW)) * 80;
                       return `${x},${y}`;
                     });
                     const pathD = `M${pts.join(" L")}`;
-                    const areaD = `${pathD} L${(last7Weights.length - 1) / (last7Weights.length - 1) * 290 + 5},80 L5,80 Z`;
+                    const areaD = `${pathD} L${(last7Weights.length - 1) / (last7Weights.length - 1) * 290 + 5},96 L5,96 Z`;
                     return (
                       <>
                         <path d={areaD} fill="url(#weightGrad)" />
                         <path d={pathD} fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         {last7Weights.map((e, i) => {
                           const x = (i / (last7Weights.length - 1)) * 290 + 5;
-                          const y = 75 - ((e.weight - minW) / (maxW - minW)) * 70;
-                          return <circle key={i} cx={x} cy={y} r="3" fill="#f59e0b" />;
+                          const y = 88 - ((e.weight - minW) / (maxW - minW)) * 80;
+                          return (
+                            <g key={i}>
+                              <circle cx={x} cy={y} r="4" fill="#0a0a0f" stroke="#f59e0b" strokeWidth="2" />
+                              <text x={x} y={y - 8} textAnchor="middle" fill="#9ca3af" fontSize="8">{e.weight}</text>
+                            </g>
+                          );
                         })}
                       </>
                     );
@@ -281,15 +283,11 @@ export default function ProgressTab() {
               </div>
               <div className="flex justify-between text-[10px] text-gray-600 mt-1">
                 <span>{formatDate(last7Weights[0].date)}</span>
-                <span className={weightChange !== null && weightChange < 0 ? "text-green-400" : "text-red-400"}>
-                  {weightChange !== null ? (weightChange <= 0 ? `${weightChange} lbs` : `+${weightChange} lbs`) : ""}
-                </span>
                 <span>{formatDate(last7Weights[last7Weights.length - 1].date)}</span>
               </div>
             </div>
           )}
 
-          {/* Log Table */}
           <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-800">
               <h3 className="font-bold text-white text-sm">Weight History</h3>
@@ -298,22 +296,24 @@ export default function ProgressTab() {
               <div className="px-4 py-8 text-center text-gray-600 text-sm">No entries yet. Start logging!</div>
             ) : (
               <div className="divide-y divide-gray-800/50">
-                {[...weightEntries].reverse().map((entry) => {
+                {[...weightEntries].reverse().map((entry, idx, arr) => {
                   const isToday = entry.date === todayKey;
+                  const prev = arr[idx + 1];
+                  const delta = prev ? +(entry.weight - prev.weight).toFixed(1) : null;
                   return (
                     <div key={entry.date} className="flex items-center justify-between px-4 py-3">
                       <div>
                         <p className="text-sm font-semibold text-white">
                           {entry.weight} <span className="text-gray-500 font-normal text-xs">lbs</span>
+                          {delta !== null && (
+                            <span className={`ml-2 text-xs ${delta < 0 ? "text-green-400" : delta > 0 ? "text-red-400" : "text-gray-600"}`}>
+                              {delta < 0 ? delta : delta > 0 ? `+${delta}` : "→"}
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-gray-500">{formatDate(entry.date)}{isToday && " · Today"}</p>
                       </div>
-                      <button
-                        onClick={() => removeWeight(entry.date)}
-                        className="text-gray-700 hover:text-red-400 text-sm px-2 py-1"
-                      >
-                        ✕
-                      </button>
+                      <button onClick={() => removeWeight(entry.date)} className="text-gray-700 hover:text-red-400 text-sm px-2 py-1">✕</button>
                     </div>
                   );
                 })}
@@ -323,7 +323,102 @@ export default function ProgressTab() {
         </>
       )}
 
-      {/* STREAKS */}
+      {/* ── STRENGTH ── */}
+      {activeSection === "strength" && (
+        <>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {workoutRotation.map(key => {
+              const w = workouts[key];
+              const hasData = !!historyData[key] && Object.keys(historyData[key]).length > 0;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSelectedWorkout(key)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    selectedWorkout === key
+                      ? "bg-yellow-400 text-black border-yellow-400"
+                      : "bg-gray-900 text-gray-400 border-gray-800"
+                  }`}
+                >
+                  {w.emoji} {key}
+                  {hasData && selectedWorkout !== key && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {!hasAnyHistory ? (
+            <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-6 text-center">
+              <p className="text-3xl mb-2">🏋️</p>
+              <p className="text-white font-semibold text-sm">No workout data yet</p>
+              <p className="text-gray-500 text-xs mt-1">Complete a workout and log your weights — they&apos;ll show up here.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">{workouts[selectedWorkout]?.name}</p>
+                {!historyData[selectedWorkout] && (
+                  <p className="text-xs text-gray-600">No data yet for this workout</p>
+                )}
+              </div>
+
+              {workoutExercises.map(ex => {
+                const sets: SetData[] = lastSession[ex.name] ?? [];
+                const best = getBestSet(sets);
+                const doneSets = sets.filter(s => s.done && s.weight);
+
+                return (
+                  <div
+                    key={ex.name}
+                    className={`bg-[#0f0f1a] border rounded-2xl p-4 transition-all ${
+                      doneSets.length === 0 ? "border-gray-800 opacity-50" : "border-gray-700"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{ex.name}</p>
+                        <p className="text-[11px] text-gray-500">{ex.sets} sets · {ex.reps} reps</p>
+                      </div>
+                      {best ? (
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-lg font-black text-yellow-400">{best.weight}<span className="text-xs text-gray-500 font-normal"> lbs</span></p>
+                          <p className="text-[11px] text-gray-500">{best.reps} reps</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-600 flex-shrink-0">—</p>
+                      )}
+                    </div>
+
+                    {doneSets.length > 0 && (
+                      <div className="mt-3 flex gap-1.5 flex-wrap">
+                        {sets.map((s, i) =>
+                          s.done && s.weight ? (
+                            <div
+                              key={i}
+                              className={`px-2 py-1 rounded-lg text-[11px] font-semibold ${
+                                s === best
+                                  ? "bg-yellow-400/20 text-yellow-400 border border-yellow-500/30"
+                                  : "bg-gray-800 text-gray-400"
+                              }`}
+                            >
+                              {s.weight}×{s.reps}
+                              {s === best && <span className="ml-1 text-[9px]">★</span>}
+                            </div>
+                          ) : null
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── STREAKS ── */}
       {activeSection === "streak" && (
         <>
           <div className="bg-gradient-to-br from-orange-500/10 to-yellow-500/5 border border-orange-500/20 rounded-2xl p-5 text-center">
@@ -332,52 +427,21 @@ export default function ProgressTab() {
             <p className="text-sm text-gray-400 mt-1">Day Streak</p>
           </div>
 
-          {/* Achievements */}
           <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
             <h3 className="font-bold text-white text-sm mb-3">Achievements</h3>
             <div className="space-y-3">
-              <Achievement
-                emoji="🌱"
-                title="First Workout"
-                desc="Log your first workout"
-                unlocked={dailyLogs.some(l => l.workoutDone)}
-              />
-              <Achievement
-                emoji="🔥"
-                title="3-Day Streak"
-                desc="Work out 3 days in a row"
-                unlocked={workoutStreak >= 3}
-              />
-              <Achievement
-                emoji="⚡"
-                title="7-Day Streak"
-                desc="Work out 7 days in a row"
-                unlocked={workoutStreak >= 7}
-              />
-              <Achievement
-                emoji="💧"
-                title="Hydration Hero"
-                desc="Hit 8 glasses in a day"
-                unlocked={dailyLogs.some(l => l.waterCount >= 8)}
-              />
-              <Achievement
-                emoji="🏆"
-                title="2-Week Warrior"
-                desc="14-day streak"
-                unlocked={workoutStreak >= 14}
-              />
-              <Achievement
-                emoji="📉"
-                title="First Drop"
-                desc="Lose your first pound"
-                unlocked={weightChange !== null && weightChange < -1}
-              />
+              <Achievement emoji="🌱" title="First Workout" desc="Log your first workout" unlocked={dailyLogs.some(l => l.workoutDone)} />
+              <Achievement emoji="🔥" title="3-Day Streak" desc="Work out 3 days in a row" unlocked={workoutStreak >= 3} />
+              <Achievement emoji="⚡" title="7-Day Streak" desc="Work out 7 days in a row" unlocked={workoutStreak >= 7} />
+              <Achievement emoji="💧" title="Hydration Hero" desc="Hit 8 glasses in a day" unlocked={dailyLogs.some(l => l.waterCount >= 8)} />
+              <Achievement emoji="🏆" title="2-Week Warrior" desc="14-day streak" unlocked={workoutStreak >= 14} />
+              <Achievement emoji="📉" title="First Drop" desc="Lose your first pound" unlocked={weightChange !== null && weightChange < -1} />
+              <Achievement emoji="💪" title="Getting Stronger" desc="Log weights on 3 different workouts" unlocked={workoutRotation.filter(k => historyData[k] && Object.keys(historyData[k]).length > 0).length >= 3} />
             </div>
           </div>
 
-          {/* Weekly Summary */}
           <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-            <h3 className="font-bold text-white text-sm mb-3">This Week&apos;s Summary</h3>
+            <h3 className="font-bold text-white text-sm mb-3">This Week</h3>
             <div className="space-y-2">
               <ProgressRow
                 label="Workouts Completed"
@@ -403,17 +467,13 @@ export default function ProgressTab() {
   );
 }
 
-function StatBox({
-  label, value, unit, emoji, color
-}: {
-  label: string; value: string; unit: string; emoji: string; color: string;
-}) {
+function StatBox({ label, value, unit, emoji, color }: { label: string; value: string; unit: string; emoji: string; color: string }) {
   const colorMap: Record<string, string> = {
     orange: "text-orange-400 border-orange-500/20 bg-orange-400/5",
     yellow: "text-yellow-400 border-yellow-500/20 bg-yellow-400/5",
-    blue: "text-blue-400 border-blue-500/20 bg-blue-400/5",
-    green: "text-green-400 border-green-500/20 bg-green-400/5",
-    gray: "text-gray-400 border-gray-700 bg-gray-800/30",
+    blue:   "text-blue-400 border-blue-500/20 bg-blue-400/5",
+    green:  "text-green-400 border-green-500/20 bg-green-400/5",
+    gray:   "text-gray-400 border-gray-700 bg-gray-800/30",
   };
   return (
     <div className={`rounded-2xl p-4 border ${colorMap[color] || colorMap.gray}`}>
@@ -429,9 +489,7 @@ function StatBox({
 
 function Achievement({ emoji, title, desc, unlocked }: { emoji: string; title: string; desc: string; unlocked: boolean }) {
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
-      unlocked ? "bg-yellow-400/5 border-yellow-500/20" : "opacity-40 border-gray-800"
-    }`}>
+    <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${unlocked ? "bg-yellow-400/5 border-yellow-500/20" : "opacity-40 border-gray-800"}`}>
       <span className={`text-2xl ${!unlocked && "grayscale"}`}>{emoji}</span>
       <div>
         <p className={`text-sm font-semibold ${unlocked ? "text-white" : "text-gray-500"}`}>{title}</p>
@@ -444,11 +502,7 @@ function Achievement({ emoji, title, desc, unlocked }: { emoji: string; title: s
 
 function ProgressRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const pct = Math.round((value / max) * 100);
-  const colorMap: Record<string, string> = {
-    yellow: "bg-yellow-400",
-    blue: "bg-blue-400",
-    green: "bg-green-400",
-  };
+  const colorMap: Record<string, string> = { yellow: "bg-yellow-400", blue: "bg-blue-400", green: "bg-green-400" };
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">

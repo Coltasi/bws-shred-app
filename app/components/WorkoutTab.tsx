@@ -47,7 +47,7 @@ function Confetti({ onDone }: { onDone: () => void }) {
       for (const p of particles) {
         p.x     += p.vx;
         p.y     += p.vy;
-        p.vy    += 0.08; // gravity
+        p.vy    += 0.08;
         p.angle += p.spin;
         if (p.y < canvas.height + 20) allGone = false;
 
@@ -74,49 +74,47 @@ function Confetti({ onDone }: { onDone: () => void }) {
     return () => cancelAnimationFrame(animId);
   }, [onDone]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-50"
-    />
-  );
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-50" />;
 }
 
+// ── Types ──────────────────────────────────────────────────────────────────
+type SetData = { done: boolean; weight: string; reps: string };
+type ExerciseLog = Record<string, SetData[]>;
+
+// ── Constants ──────────────────────────────────────────────────────────────
 const ROTATION_KEY = "bws-rotation-index";
+
+const WARMUP_OPTIONS = [
+  { id: "erg",        label: "Rowing Erg",      icon: "⟿" },
+  { id: "treadmill",  label: "Treadmill Walk",   icon: "↑" },
+  { id: "stairmaster",label: "Stair Master",     icon: "▲" },
+  { id: "bike",       label: "Stationary Bike",  icon: "◎" },
+];
+
+const AB_EXERCISES: Exercise[] = [
+  { name: "Plank",              sets: "3", reps: "45 sec",      rest: "30 sec", notes: "Brace your core like someone's about to punch you. Keep hips level — don't let them sag or pike." },
+  { name: "Hanging Leg Raises", sets: "3", reps: "10–12",       rest: "60 sec", notes: "Dead hang from a pull-up bar. Raise legs to 90° keeping them as straight as possible. Lower slowly." },
+  { name: "Cable Crunch",       sets: "3", reps: "12–15",       rest: "60 sec", notes: "Kneel facing cable with rope. Crunch your rib cage down to your hips — not your head to the floor. Keep hips still." },
+  { name: "Dead Bug",           sets: "3", reps: "8 each side", rest: "45 sec", notes: "Lie on back, arms up, knees at 90°. Lower opposite arm and leg slowly while pressing your lower back into the floor. Switch sides." },
+];
+
+const colorMap: Record<string, string> = {
+  blue:   "text-blue-400 bg-blue-400/10 border-blue-500/30",
+  green:  "text-green-400 bg-green-400/10 border-green-500/30",
+  orange: "text-orange-400 bg-orange-400/10 border-orange-500/30",
+  purple: "text-purple-400 bg-purple-400/10 border-purple-500/30",
+  red:    "text-red-400 bg-red-400/10 border-red-500/30",
+};
+
+// ── localStorage helpers ───────────────────────────────────────────────────
+function sessionKey(k: string)   { return `bws-session-${k}`; }
+function historyKey(k: string)   { return `bws-history-${k}`; }
+function customKey(k: string)    { return `bws-custom-${k}`; }
 
 function getRotationIndex(): number {
   if (typeof window === "undefined") return 0;
   return parseInt(localStorage.getItem(ROTATION_KEY) || "0", 10) % workoutRotation.length;
 }
-
-// ── Types ──────────────────────────────────────────────────────────────────
-type SetData = {
-  done: boolean;
-  weight: string;
-  reps: string;
-};
-
-type ExerciseLog = Record<string, SetData[]>;
-
-// ── Warm-up options ────────────────────────────────────────────────────────
-const WARMUP_OPTIONS = [
-  { id: "erg",       label: "Rowing Erg",     icon: "⟿" },
-  { id: "treadmill", label: "Treadmill Walk",  icon: "↑" },
-  { id: "stairmaster",label: "Stair Master",   icon: "▲" },
-  { id: "bike",      label: "Stationary Bike", icon: "◎" },
-];
-
-// ── Ab finisher exercises ──────────────────────────────────────────────────
-const AB_EXERCISES: Exercise[] = [
-  { name: "Plank",               sets: "3", reps: "45 sec", rest: "30 sec", notes: "Brace your core like someone's about to punch you. Keep hips level — don't let them sag or pike." },
-  { name: "Hanging Leg Raises",  sets: "3", reps: "10–12",  rest: "60 sec", notes: "Dead hang from a pull-up bar. Raise legs to 90° keeping them as straight as possible. Lower slowly." },
-  { name: "Cable Crunch",        sets: "3", reps: "12–15",  rest: "60 sec", notes: "Kneel facing cable with rope. Crunch your rib cage down to your hips — not your head to the floor. Keep hips still." },
-  { name: "Dead Bug",            sets: "3", reps: "8 each side", rest: "45 sec", notes: "Lie on back, arms up, knees at 90°. Lower opposite arm and leg slowly while pressing your lower back into the floor. Switch sides." },
-];
-
-// ── localStorage helpers ───────────────────────────────────────────────────
-function sessionKey(k: string)  { return `bws-session-${k}`; }
-function historyKey(k: string)  { return `bws-history-${k}`; }
 
 function loadSession(k: string): ExerciseLog {
   try { return JSON.parse(localStorage.getItem(sessionKey(k)) || "{}"); }
@@ -133,21 +131,22 @@ function archiveSession(k: string, log: ExerciseLog) {
   const hasData = Object.values(log).some(sets => sets.some(s => s.weight.trim() !== ""));
   if (hasData) localStorage.setItem(historyKey(k), JSON.stringify(log));
 }
+function loadCustomExercises(k: string): Exercise[] | null {
+  try {
+    const raw = localStorage.getItem(customKey(k));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function saveCustomExercises(k: string, exercises: Exercise[]) {
+  localStorage.setItem(customKey(k), JSON.stringify(exercises));
+}
+
 function initSets(ex: Exercise, saved: SetData[] | undefined): SetData[] {
   const count = parseInt(ex.sets) || 3;
   return Array.from({ length: count }, (_, i) =>
     saved?.[i] ?? { done: false, weight: "", reps: "" }
   );
 }
-
-// ── Color map ──────────────────────────────────────────────────────────────
-const colorMap: Record<string, string> = {
-  blue:   "text-blue-400 bg-blue-400/10 border-blue-500/30",
-  green:  "text-green-400 bg-green-400/10 border-green-500/30",
-  orange: "text-orange-400 bg-orange-400/10 border-orange-500/30",
-  purple: "text-purple-400 bg-purple-400/10 border-purple-500/30",
-  red:    "text-red-400 bg-red-400/10 border-red-500/30",
-};
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function WorkoutTab() {
@@ -164,12 +163,29 @@ export default function WorkoutTab() {
   const [cooldownDone, setCooldownDone]         = useState(false);
   const [absDone, setAbsDone]                   = useState<Record<string, boolean>>({});
   const [showConfetti, setShowConfetti]         = useState(false);
+
+  // Exercise customization
+  const [editMode, setEditMode]                 = useState(false);
+  const [customExercises, setCustomExercises]   = useState<Record<string, Exercise[]>>({});
+  const [showAddForm, setShowAddForm]           = useState(false);
+  const [newEx, setNewEx]                       = useState<{ name: string; sets: string; reps: string; rest: string }>({
+    name: "", sets: "3", reps: "8–12", rest: "90 sec"
+  });
+
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const idx = getRotationIndex();
     setRotationIdx(idx);
     setSelectedKey(workoutRotation[idx]);
+
+    // Load all custom exercise lists
+    const allCustom: Record<string, Exercise[]> = {};
+    for (const k of workoutRotation) {
+      const custom = loadCustomExercises(k);
+      if (custom) allCustom[k] = custom;
+    }
+    setCustomExercises(allCustom);
   }, []);
 
   useEffect(() => {
@@ -181,6 +197,8 @@ export default function WorkoutTab() {
     setWarmupChoice("");
     setCooldownDone(false);
     setAbsDone({});
+    setEditMode(false);
+    setShowAddForm(false);
   }, [selectedKey]);
 
   useEffect(() => {
@@ -201,6 +219,42 @@ export default function WorkoutTab() {
 
   const workout = workouts[selectedKey];
 
+  // Effective exercises = custom override or default
+  const effectiveExercises: Exercise[] = customExercises[selectedKey] ?? workout?.exercises ?? [];
+
+  // ── Exercise customization helpers ─────────────────────────────────────
+  function removeExercise(name: string) {
+    const updated = effectiveExercises.filter(e => e.name !== name);
+    const next = { ...customExercises, [selectedKey]: updated };
+    setCustomExercises(next);
+    saveCustomExercises(selectedKey, updated);
+  }
+
+  function addExercise() {
+    if (!newEx.name.trim()) return;
+    const ex: Exercise = {
+      name: newEx.name.trim(),
+      sets: newEx.sets || "3",
+      reps: newEx.reps || "8–12",
+      rest: newEx.rest || "90 sec",
+      notes: "",
+    };
+    const updated = [...effectiveExercises, ex];
+    const next = { ...customExercises, [selectedKey]: updated };
+    setCustomExercises(next);
+    saveCustomExercises(selectedKey, updated);
+    setNewEx({ name: "", sets: "3", reps: "8–12", rest: "90 sec" });
+    setShowAddForm(false);
+  }
+
+  function resetToDefault() {
+    const next = { ...customExercises };
+    delete next[selectedKey];
+    setCustomExercises(next);
+    localStorage.removeItem(customKey(selectedKey));
+    setEditMode(false);
+  }
+
   // ── Set helpers ────────────────────────────────────────────────────────
   function getSets(ex: Exercise): SetData[] {
     return initSets(ex, session[ex.name]);
@@ -220,10 +274,9 @@ export default function WorkoutTab() {
     updateSet(ex, setIdx, { done: !wasDone });
     if (!wasDone && ex.rest) startTimer(parseRestTime(ex.rest), "Rest");
 
-    // Fire confetti when the very last main set is completed
     if (!wasDone) {
       const newSession = { ...session, [ex.name]: sets.map((s, i) => i === setIdx ? { ...s, done: true } : s) };
-      const allDone = workout?.exercises.every(e => {
+      const allDone = effectiveExercises.every(e => {
         const eSets = initSets(e, newSession[e.name]);
         return eSets.every(s => s.done);
       });
@@ -249,23 +302,21 @@ export default function WorkoutTab() {
     setTimerLabel(label);
     setTimerRunning(true);
   };
-
   const stopTimer = () => {
     setTimerRunning(false);
     if (intervalRef.current) clearInterval(intervalRef.current);
     setTimer(null);
     setTimerLabel("");
   };
-
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   // ── Progress ───────────────────────────────────────────────────────────
-  const totalSets = workout?.exercises.reduce((acc, ex) => acc + (parseInt(ex.sets) || 3), 0) ?? 0;
-  const doneSets  = workout?.exercises.reduce((acc, ex) => acc + getSets(ex).filter(s => s.done).length, 0) ?? 0;
+  const totalSets = effectiveExercises.reduce((acc, ex) => acc + (parseInt(ex.sets) || 3), 0);
+  const doneSets  = effectiveExercises.reduce((acc, ex) => acc + getSets(ex).filter(s => s.done).length, 0);
   const mainDone  = totalSets > 0 && doneSets === totalSets;
-
-  const abTotal = AB_EXERCISES.length;
+  const abTotal   = AB_EXERCISES.length;
   const abDoneCount = Object.values(absDone).filter(Boolean).length;
+  const isCustomized = !!customExercises[selectedKey];
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -274,12 +325,13 @@ export default function WorkoutTab() {
 
       {/* Workout Selector */}
       <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Workouts — pick one to start</p>
+        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Pick a workout</p>
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {workoutRotation.map((key, idx) => {
             const w = workouts[key];
             const isNext = idx === rotationIdx;
             const isSelected = key === selectedKey;
+            const isCustomized = !!customExercises[key];
             return (
               <button key={key} onClick={() => setSelectedKey(key)}
                 className={`flex-shrink-0 flex flex-col items-center px-3 py-2.5 rounded-xl border transition-all min-w-[64px] ${
@@ -291,7 +343,8 @@ export default function WorkoutTab() {
                 }`}>
                 <span className="text-lg">{w.emoji}</span>
                 <span className="text-[10px] font-semibold mt-0.5 uppercase tracking-tight">{key}</span>
-                {isNext && !isSelected && <span className="text-[9px] text-yellow-400 mt-0.5">NEXT UP</span>}
+                {isCustomized && <span className="text-[8px] text-yellow-500 mt-0.5">custom</span>}
+                {isNext && !isSelected && !isCustomized && <span className="text-[9px] text-yellow-400 mt-0.5">NEXT UP</span>}
               </button>
             );
           })}
@@ -313,7 +366,7 @@ export default function WorkoutTab() {
           </div>
 
           {!warmupDone && (
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="grid grid-cols-4 gap-2 mb-3">
               {WARMUP_OPTIONS.map(opt => (
                 <button key={opt.id} onClick={() => setWarmupChoice(opt.id)}
                   className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border text-xs font-semibold transition-all ${
@@ -322,7 +375,7 @@ export default function WorkoutTab() {
                       : "bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-600"
                   }`}>
                   <span className="text-base font-mono">{opt.icon}</span>
-                  <span className="text-center leading-tight">{opt.label}</span>
+                  <span className="text-center leading-tight text-[10px]">{opt.label}</span>
                 </button>
               ))}
             </div>
@@ -348,7 +401,7 @@ export default function WorkoutTab() {
           )}
         </div>
 
-        {/* ── REST / WARMUP TIMER ── */}
+        {/* ── TIMER ── */}
         {timer !== null && (
           <div className={`rounded-2xl p-4 border text-center transition-all ${
             timer === 0
@@ -384,19 +437,32 @@ export default function WorkoutTab() {
         {/* ── WORKOUT HEADER ── */}
         <div className={`rounded-2xl p-4 border ${colorMap[workout.color] || "text-yellow-400 bg-yellow-400/10 border-yellow-500/30"}`}>
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1 min-w-0">
               {selectedKey === workoutRotation[rotationIdx] && (
                 <span className="text-xs font-bold uppercase tracking-widest opacity-60 bg-current/10 px-2 py-0.5 rounded-full">Next Up</span>
               )}
               <h2 className="text-xl font-bold mt-1">{workout.emoji} {workout.name}</h2>
-              <p className="text-xs opacity-60 mt-0.5">Step 2 · {workout.exercises.length} exercises</p>
+              <p className="text-xs opacity-60 mt-0.5">Step 2 · {effectiveExercises.length} exercises{isCustomized ? " · customized" : ""}</p>
             </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold">{doneSets}/{totalSets}</p>
-              <p className="text-xs opacity-70">sets done</p>
-              {doneSets > 0 && (
-                <button onClick={resetWorkout} className="text-xs opacity-50 hover:opacity-80 mt-1">reset</button>
-              )}
+            <div className="flex items-start gap-3">
+              {/* Edit button */}
+              <button
+                onClick={() => { setEditMode(!editMode); setShowAddForm(false); }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                  editMode
+                    ? "bg-yellow-400 text-black border-yellow-400"
+                    : "bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500"
+                }`}
+              >
+                {editMode ? "Done" : "✏️ Edit"}
+              </button>
+              <div className="text-right">
+                <p className="text-2xl font-bold">{doneSets}/{totalSets}</p>
+                <p className="text-xs opacity-70">sets done</p>
+                {doneSets > 0 && (
+                  <button onClick={resetWorkout} className="text-xs opacity-50 hover:opacity-80 mt-1">reset</button>
+                )}
+              </div>
             </div>
           </div>
           {totalSets > 0 && (
@@ -411,12 +477,12 @@ export default function WorkoutTab() {
 
         {/* ── EXERCISE LIST ── */}
         <div className="space-y-3">
-          {workout.exercises.map((ex, exIdx) => {
+          {effectiveExercises.map((ex, exIdx) => {
             const sets       = getSets(ex);
             const done       = sets.filter(s => s.done).length;
             const total      = sets.length;
             const isComplete = done === total;
-            const isExpanded = expandedExercise === ex.name;
+            const isExpanded = !editMode && expandedExercise === ex.name;
             const prevSets   = history[ex.name];
             const lastBest   = prevSets?.reduce<SetData | null>((b, s) => {
               if (!s.weight) return b;
@@ -424,91 +490,192 @@ export default function WorkoutTab() {
             }, null);
 
             return (
-              <div key={exIdx} className={`bg-[#0f0f1a] border rounded-2xl overflow-hidden transition-all ${
-                isComplete ? "border-green-500/30" : "border-gray-800"
+              <div key={`${ex.name}-${exIdx}`} className={`bg-[#0f0f1a] border rounded-2xl overflow-hidden transition-all ${
+                editMode ? "border-yellow-500/20" : isComplete ? "border-green-500/30" : "border-gray-800"
               }`}>
-                <button onClick={() => setExpandedExercise(isExpanded ? null : ex.name)}
-                  className="w-full flex items-center gap-3 p-4 text-left">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                    isComplete ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"
-                  }`}>
-                    {isComplete ? "✓" : exIdx + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-semibold text-sm ${isComplete ? "text-gray-500 line-through" : "text-white"}`}>{ex.name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {ex.sets} sets × {ex.reps}
-                      {ex.rest && <span className="ml-2 text-blue-400/70">· {ex.rest} rest</span>}
-                    </p>
-                    {lastBest && (
-                      <p className="text-[11px] text-yellow-400/60 mt-0.5">Last: {lastBest.weight}kg × {lastBest.reps || "?"} reps</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold ${isComplete ? "text-green-400" : "text-gray-500"}`}>{done}/{total}</span>
-                    <span className="text-gray-600 text-sm">{isExpanded ? "▲" : "▼"}</span>
-                  </div>
-                </button>
-
-                {isExpanded && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-gray-800/50 pt-3">
-                    {ex.notes && (
-                      <p className="text-xs text-yellow-400/80 bg-yellow-400/5 rounded-lg px-3 py-2">{ex.notes}</p>
-                    )}
-                    <div className="grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 px-1">
-                      <div /><p className="text-[10px] text-gray-600 uppercase tracking-wider">Set</p>
-                      <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">kg</p>
-                      <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">Reps</p>
-                      <div />
+                {/* Edit mode row */}
+                {editMode ? (
+                  <div className="flex items-center gap-3 p-4">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 bg-gray-800 text-gray-400">
+                      {exIdx + 1}
                     </div>
-                    {sets.map((setData, setIdx) => {
-                      const prev = prevSets?.[setIdx];
-                      return (
-                        <div key={setIdx} className="space-y-0.5">
-                          <div className={`grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 items-center rounded-xl p-2 transition-all ${
-                            setData.done ? "bg-green-500/5 border border-green-500/20" : "bg-gray-900/50 border border-gray-800"
-                          }`}>
-                            <span className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold ${
-                              setData.done ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"
-                            }`}>{setIdx + 1}</span>
-                            <span className={`text-sm font-medium ${setData.done ? "text-gray-500" : "text-gray-200"}`}>Set {setIdx + 1}</span>
-                            <input type="number" inputMode="decimal"
-                              placeholder={prev?.weight || "—"} value={setData.weight}
-                              onChange={e => updateSet(ex, setIdx, { weight: e.target.value })}
-                              onClick={e => e.stopPropagation()}
-                              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
-                            <input type="number" inputMode="numeric"
-                              placeholder={prev?.reps || ex.reps.split(/[-–]/)[0]} value={setData.reps}
-                              onChange={e => updateSet(ex, setIdx, { reps: e.target.value })}
-                              onClick={e => e.stopPropagation()}
-                              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
-                            <button onClick={() => toggleDone(ex, setIdx)}
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-sm ${
-                                setData.done ? "bg-green-500 text-white" : "bg-gray-700 text-gray-500 hover:bg-gray-600"
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-white">{ex.name}</p>
+                      <p className="text-xs text-gray-500">{ex.sets} sets × {ex.reps}</p>
+                    </div>
+                    <button
+                      onClick={() => removeExercise(ex.name)}
+                      className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center text-sm hover:bg-red-500/40 flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={() => setExpandedExercise(isExpanded ? null : ex.name)}
+                      className="w-full flex items-center gap-3 p-4 text-left">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                        isComplete ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"
+                      }`}>
+                        {isComplete ? "✓" : exIdx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-semibold text-sm ${isComplete ? "text-gray-500 line-through" : "text-white"}`}>{ex.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {ex.sets} sets × {ex.reps}
+                          {ex.rest && <span className="ml-2 text-blue-400/70">· {ex.rest} rest</span>}
+                        </p>
+                        {lastBest && (
+                          <p className="text-[11px] text-yellow-400/60 mt-0.5">Last: {lastBest.weight} lbs × {lastBest.reps || "?"} reps</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold ${isComplete ? "text-green-400" : "text-gray-500"}`}>{done}/{total}</span>
+                        <span className="text-gray-600 text-sm">{isExpanded ? "▲" : "▼"}</span>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 space-y-3 border-t border-gray-800/50 pt-3">
+                        {ex.notes && (
+                          <p className="text-xs text-yellow-400/80 bg-yellow-400/5 rounded-lg px-3 py-2">{ex.notes}</p>
+                        )}
+                        <div className="grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 px-1">
+                          <div /><p className="text-[10px] text-gray-600 uppercase tracking-wider">Set</p>
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">lbs</p>
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">Reps</p>
+                          <div />
+                        </div>
+                        {sets.map((setData, setIdx) => {
+                          const prev = prevSets?.[setIdx];
+                          return (
+                            <div key={setIdx} className="space-y-0.5">
+                              <div className={`grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 items-center rounded-xl p-2 transition-all ${
+                                setData.done ? "bg-green-500/5 border border-green-500/20" : "bg-gray-900/50 border border-gray-800"
                               }`}>
-                              {setData.done ? "✓" : "·"}
+                                <span className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold ${
+                                  setData.done ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"
+                                }`}>{setIdx + 1}</span>
+                                <span className={`text-sm font-medium ${setData.done ? "text-gray-500" : "text-gray-200"}`}>Set {setIdx + 1}</span>
+                                <input type="number" inputMode="decimal"
+                                  placeholder={prev?.weight || "—"} value={setData.weight}
+                                  onChange={e => updateSet(ex, setIdx, { weight: e.target.value })}
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
+                                <input type="number" inputMode="numeric"
+                                  placeholder={prev?.reps || ex.reps.split(/[-–]/)[0]} value={setData.reps}
+                                  onChange={e => updateSet(ex, setIdx, { reps: e.target.value })}
+                                  onClick={e => e.stopPropagation()}
+                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
+                                <button onClick={() => toggleDone(ex, setIdx)}
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all text-sm ${
+                                    setData.done ? "bg-green-500 text-white" : "bg-gray-700 text-gray-500 hover:bg-gray-600"
+                                  }`}>
+                                  {setData.done ? "✓" : "·"}
+                                </button>
+                              </div>
+                              {prev?.weight && (
+                                <p className="text-[10px] text-gray-600 pl-10">Last: {prev.weight} lbs × {prev.reps || "?"} reps</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {ex.rest && (
+                          <div className="flex items-center justify-between pt-1">
+                            <p className="text-xs text-gray-500">Rest: {ex.rest}</p>
+                            <button onClick={() => startTimer(parseRestTime(ex.rest!), "Rest")}
+                              className="text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-3 py-1 rounded-lg">
+                              Start rest timer
                             </button>
                           </div>
-                          {prev?.weight && (
-                            <p className="text-[10px] text-gray-600 pl-10">Last: {prev.weight}kg × {prev.reps || "?"} reps</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {ex.rest && (
-                      <div className="flex items-center justify-between pt-1">
-                        <p className="text-xs text-gray-500">Rest: {ex.rest}</p>
-                        <button onClick={() => startTimer(parseRestTime(ex.rest!), "Rest")}
-                          className="text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-3 py-1 rounded-lg">
-                          Start rest timer
-                        </button>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             );
           })}
+
+          {/* Edit mode: Add exercise form */}
+          {editMode && (
+            <div className="bg-[#0f0f1a] border border-dashed border-yellow-500/30 rounded-2xl p-4 space-y-3">
+              {!showAddForm ? (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="w-full py-3 text-sm text-yellow-400 font-semibold flex items-center justify-center gap-2 hover:text-yellow-300"
+                >
+                  <span className="text-lg">＋</span> Add Exercise
+                </button>
+              ) : (
+                <>
+                  <p className="text-xs text-yellow-400 font-semibold uppercase tracking-wide">New Exercise</p>
+                  <input
+                    type="text"
+                    placeholder="Exercise name (e.g. Bicep Curls)"
+                    value={newEx.name}
+                    onChange={e => setNewEx(p => ({ ...p, name: e.target.value }))}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50"
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <p className="text-[10px] text-gray-500 mb-1">Sets</p>
+                      <input
+                        type="number"
+                        value={newEx.sets}
+                        onChange={e => setNewEx(p => ({ ...p, sets: e.target.value }))}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white text-center outline-none focus:border-yellow-500/50"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-500 mb-1">Reps</p>
+                      <input
+                        type="text"
+                        value={newEx.reps}
+                        onChange={e => setNewEx(p => ({ ...p, reps: e.target.value }))}
+                        placeholder="8–12"
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white text-center outline-none focus:border-yellow-500/50"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-500 mb-1">Rest</p>
+                      <input
+                        type="text"
+                        value={newEx.rest}
+                        onChange={e => setNewEx(p => ({ ...p, rest: e.target.value }))}
+                        placeholder="90 sec"
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white text-center outline-none focus:border-yellow-500/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={addExercise}
+                      className="flex-1 py-2.5 rounded-xl bg-yellow-400 text-black text-sm font-bold hover:bg-yellow-300"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => setShowAddForm(false)}
+                      className="py-2.5 px-4 rounded-xl bg-gray-800 text-gray-400 text-sm hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Edit mode: reset to default */}
+          {editMode && isCustomized && (
+            <button
+              onClick={resetToDefault}
+              className="w-full py-2.5 text-xs text-gray-500 hover:text-red-400 border border-gray-800 rounded-xl transition-colors"
+            >
+              Reset to default workout
+            </button>
+          )}
         </div>
 
         {/* ── AB FINISHER ── */}
@@ -586,12 +753,12 @@ export default function WorkoutTab() {
           )}
         </div>
 
-        {/* ── COMPLETION BANNER ── */}
+        {/* ── COMPLETION ── */}
         {mainDone && (
           <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-5 text-center">
-            <p className="text-lg font-bold text-green-400">Workout Complete!</p>
+            <p className="text-lg font-bold text-green-400">Workout Complete! 🎉</p>
             <p className="text-xs text-gray-400 mt-1">
-              {abDoneCount < abTotal ? `Finish the ab circuit and cool down to wrap up.` : "All done — mark it on the Today tab to advance your rotation."}
+              {abDoneCount < abTotal ? "Finish the ab circuit and cool down to wrap up." : "All done — mark it on the Today tab to advance your rotation."}
             </p>
             <button onClick={resetWorkout}
               className="mt-3 text-xs text-gray-500 hover:text-gray-300 bg-gray-800 px-4 py-2 rounded-lg">
