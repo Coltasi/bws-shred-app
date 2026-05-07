@@ -61,9 +61,20 @@ export default function ProgressTab() {
 
     const history: Record<string, ExerciseLog> = {};
     for (const key of workoutRotation) {
-      const raw = localStorage.getItem(`bws-history-${key}`);
+      // Prefer current active session, fall back to archived history
+      const session = localStorage.getItem(`bws-session-${key}`);
+      const archived = localStorage.getItem(`bws-history-${key}`);
+      const raw = session || archived;
       if (raw) {
-        try { history[key] = JSON.parse(raw); } catch { /* skip */ }
+        try {
+          const parsed: ExerciseLog = JSON.parse(raw);
+          // Only use if it actually has logged weight data
+          const hasData = Object.values(parsed).some(sets =>
+            sets.some(s => s.weight && s.weight.trim() !== "")
+          );
+          if (hasData) history[key] = parsed;
+          else if (archived) history[key] = JSON.parse(archived);
+        } catch { /* skip */ }
       }
     }
     setHistoryData(history);
