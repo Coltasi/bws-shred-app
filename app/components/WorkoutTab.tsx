@@ -287,7 +287,12 @@ export default function WorkoutTab() {
         const eSets = initSets(e, newSession[e.name]);
         return eSets.every(s => s.done);
       });
-      if (allDone) setShowConfetti(true);
+      if (allDone) {
+        setShowConfetti(true);
+        // Auto-save as soon as all sets are done
+        archiveSession(selectedKey, newSession);
+        setHistory(loadHistory(selectedKey));
+      }
     }
   }
 
@@ -776,13 +781,16 @@ export default function WorkoutTab() {
         {/* ── COMPLETION ── */}
         {mainDone && (
           <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-5 text-center">
-            <p className="text-lg font-bold text-green-400">Workout Complete! 🎉</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {abDoneCount < abTotal ? "Finish the ab circuit and cool down to wrap up." : "All done — mark it on the Today tab to advance your rotation."}
+            <p className="text-2xl mb-1">🎉</p>
+            <p className="text-lg font-bold text-green-400">Workout Saved!</p>
+            <p className="text-xs text-gray-400 mt-1 mb-4">
+              {abDoneCount < abTotal
+                ? "Weights logged. Finish the ab circuit and cool down when ready."
+                : "All done — mark it complete on the Today tab."}
             </p>
             <button onClick={resetWorkout}
-              className="mt-3 text-xs text-gray-500 hover:text-gray-300 bg-gray-800 px-4 py-2 rounded-lg">
-              Save & reset for next session
+              className="text-xs text-gray-500 hover:text-gray-300 bg-gray-800 px-4 py-2 rounded-lg">
+              Start fresh for next session
             </button>
           </div>
         )}
