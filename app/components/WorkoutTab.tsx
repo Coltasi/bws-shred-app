@@ -164,6 +164,9 @@ export default function WorkoutTab() {
   const [absDone, setAbsDone]                   = useState<Record<string, boolean>>({});
   const [showConfetti, setShowConfetti]         = useState(false);
 
+  // Weight unit preference
+  const [weightUnit, setWeightUnit]             = useState<"kg" | "lbs">("kg");
+
   // Exercise customization
   const [editMode, setEditMode]                 = useState(false);
   const [customExercises, setCustomExercises]   = useState<Record<string, Exercise[]>>({});
@@ -178,6 +181,10 @@ export default function WorkoutTab() {
     const idx = getRotationIndex();
     setRotationIdx(idx);
     setSelectedKey(workoutRotation[idx]);
+
+    // Load weight unit preference
+    const savedUnit = localStorage.getItem("bws-weight-unit") as "kg" | "lbs" | null;
+    if (savedUnit) setWeightUnit(savedUnit);
 
     // Load all custom exercise lists
     const allCustom: Record<string, Exercise[]> = {};
@@ -445,6 +452,19 @@ export default function WorkoutTab() {
               <p className="text-xs opacity-60 mt-0.5">Step 2 · {effectiveExercises.length} exercises{isCustomized ? " · customized" : ""}</p>
             </div>
             <div className="flex items-start gap-3">
+              {/* Unit toggle */}
+              <button
+                onClick={() => {
+                  const next = weightUnit === "kg" ? "lbs" : "kg";
+                  setWeightUnit(next);
+                  localStorage.setItem("bws-weight-unit", next);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-gray-800 border-gray-700 hover:border-gray-500 transition-all"
+              >
+                <span className={weightUnit === "kg" ? "text-yellow-400" : "text-gray-500"}>kg</span>
+                <span className="text-gray-600 mx-1">/</span>
+                <span className={weightUnit === "lbs" ? "text-yellow-400" : "text-gray-500"}>lbs</span>
+              </button>
               {/* Edit button */}
               <button
                 onClick={() => { setEditMode(!editMode); setShowAddForm(false); }}
@@ -526,7 +546,7 @@ export default function WorkoutTab() {
                           {ex.rest && <span className="ml-2 text-blue-400/70">· {ex.rest} rest</span>}
                         </p>
                         {lastBest && (
-                          <p className="text-[11px] text-yellow-400/60 mt-0.5">Last: {lastBest.weight} lbs × {lastBest.reps || "?"} reps</p>
+                          <p className="text-[11px] text-yellow-400/60 mt-0.5">Last: {lastBest.weight} {weightUnit} × {lastBest.reps || "?"} reps</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -542,7 +562,7 @@ export default function WorkoutTab() {
                         )}
                         <div className="grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 px-1">
                           <div /><p className="text-[10px] text-gray-600 uppercase tracking-wider">Set</p>
-                          <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">lbs</p>
+                          <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">{weightUnit}</p>
                           <p className="text-[10px] text-gray-600 uppercase tracking-wider text-center">Reps</p>
                           <div />
                         </div>
@@ -575,7 +595,7 @@ export default function WorkoutTab() {
                                 </button>
                               </div>
                               {prev?.weight && (
-                                <p className="text-[10px] text-gray-600 pl-10">Last: {prev.weight} lbs × {prev.reps || "?"} reps</p>
+                                <p className="text-[10px] text-gray-600 pl-10">Last: {prev.weight} {weightUnit} × {prev.reps || "?"} reps</p>
                               )}
                             </div>
                           );

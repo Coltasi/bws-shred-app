@@ -37,12 +37,16 @@ export default function ProgressTab() {
   const [activeSection, setActiveSection] = useState<"overview" | "weight" | "strength" | "streak">("overview");
   const [selectedWorkout, setSelectedWorkout] = useState<string>("Upper");
   const [historyData, setHistoryData] = useState<Record<string, ExerciseLog>>({});
+  const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
 
   const todayKey = getDateKey(0);
 
   useEffect(() => {
     const saved = localStorage.getItem("bws-weight-log");
     if (saved) setWeightEntries(JSON.parse(saved));
+
+    const savedUnit = localStorage.getItem("bws-weight-unit") as "kg" | "lbs" | null;
+    if (savedUnit) setWeightUnit(savedUnit);
 
     const logs: DailyLog[] = [];
     for (let i = 0; i < 14; i++) {
@@ -169,7 +173,7 @@ export default function ProgressTab() {
             <StatBox
               label="Weight Change"
               value={weightChange !== null ? (weightChange <= 0 ? `${weightChange}` : `+${weightChange}`) : "—"}
-              unit={weightChange !== null ? "lbs" : "no data"}
+              unit={weightChange !== null ? weightUnit : "no data"}
               emoji={weightChange !== null && weightChange < 0 ? "📉" : "📊"}
               color={weightChange !== null && weightChange < 0 ? "green" : "gray"}
             />
@@ -234,7 +238,7 @@ export default function ProgressTab() {
                   onKeyDown={e => e.key === "Enter" && addWeight()}
                   className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-3 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">lbs</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">{weightUnit}</span>
               </div>
               <button
                 onClick={addWeight}
@@ -253,7 +257,7 @@ export default function ProgressTab() {
                   <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
                     weightChange < 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
                   }`}>
-                    {weightChange <= 0 ? weightChange : `+${weightChange}`} lbs total
+                    {weightChange <= 0 ? weightChange : `+${weightChange}`} {weightUnit} total
                   </span>
                 )}
               </div>
@@ -315,7 +319,7 @@ export default function ProgressTab() {
                     <div key={entry.date} className="flex items-center justify-between px-4 py-3">
                       <div>
                         <p className="text-sm font-semibold text-white">
-                          {entry.weight} <span className="text-gray-500 font-normal text-xs">lbs</span>
+                          {entry.weight} <span className="text-gray-500 font-normal text-xs">{weightUnit}</span>
                           {delta !== null && (
                             <span className={`ml-2 text-xs ${delta < 0 ? "text-green-400" : delta > 0 ? "text-red-400" : "text-gray-600"}`}>
                               {delta < 0 ? delta : delta > 0 ? `+${delta}` : "→"}
@@ -394,7 +398,7 @@ export default function ProgressTab() {
                       </div>
                       {best ? (
                         <div className="text-right flex-shrink-0">
-                          <p className="text-lg font-black text-yellow-400">{best.weight}<span className="text-xs text-gray-500 font-normal"> lbs</span></p>
+                          <p className="text-lg font-black text-yellow-400">{best.weight}<span className="text-xs text-gray-500 font-normal"> {weightUnit}</span></p>
                           <p className="text-[11px] text-gray-500">{best.reps} reps</p>
                         </div>
                       ) : (
