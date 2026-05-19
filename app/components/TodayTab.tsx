@@ -5,6 +5,8 @@ import { workouts, workoutRotation } from "../data/workouts";
 
 type Tab = "today" | "workout" | "progress";
 type ActivityType = "lift" | "swim" | "bike" | "rest" | null;
+type CustomWorkout = { key: string; name: string; emoji: string; exercises: { name: string; sets: string; reps: string }[] };
+const MY_WORKOUTS_KEY = "bws-my-workouts";
 
 interface TodayTabProps {
   onNavigate: (tab: Tab) => void;
@@ -47,6 +49,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
   const [workoutDone, setWorkoutDone]         = useState(false);
   const [rotationIdx, setRotationIdx]         = useState(0);
   const [selectedWorkoutKey, setSelectedWorkoutKey] = useState<string>("");
+  const [myWorkouts, setMyWorkouts]           = useState<CustomWorkout[]>([]);
   const [sleepHours, setSleepHours]           = useState<number | null>(null);
   const [swimMeters, setSwimMeters]           = useState<number>(0);
   const [steps, setSteps]                     = useState<number>(0);
@@ -59,6 +62,13 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
     const idx = getRotationIndex();
     setRotationIdx(idx);
     setSelectedWorkoutKey(workoutRotation[idx]);
+
+    // Load custom workouts
+    try {
+      const mw: CustomWorkout[] = JSON.parse(localStorage.getItem(MY_WORKOUTS_KEY) || "[]");
+      setMyWorkouts(mw);
+    } catch { /* ignore */ }
+
     const saved = localStorage.getItem(`bws-today-${dateKey}`);
     if (saved) {
       const p = JSON.parse(saved);
@@ -109,7 +119,11 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
   };
 
   const nextWorkoutKey = workoutRotation[rotationIdx];
-  const chosenWorkout = workouts[selectedWorkoutKey] || workouts[nextWorkoutKey];
+  const selectedMyWorkout = myWorkouts.find(w => w.key === selectedWorkoutKey);
+  const builtInChosen = workouts[selectedWorkoutKey] || workouts[nextWorkoutKey];
+  const chosenWorkout = selectedMyWorkout
+    ? { name: selectedMyWorkout.name, emoji: selectedMyWorkout.emoji, exercises: selectedMyWorkout.exercises, color: "yellow" }
+    : builtInChosen;
   const pickWorkout = (key: string) => { setSelectedWorkoutKey(key); persist({ selectedWorkoutKey: key }); };
 
   const activityDone = workoutDone || activity === "swim" || activity === "bike";
@@ -289,6 +303,20 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
                     {isSuggested && !isSelected && (
                       <span className="text-[9px] text-yellow-400 mt-0.5">suggested</span>
                     )}
+                  </button>
+                );
+              })}
+              {myWorkouts.map((w) => {
+                const isSelected = selectedWorkoutKey === w.key;
+                return (
+                  <button key={w.key} onClick={() => pickWorkout(w.key)}
+                    className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl border text-xs font-semibold transition-all min-w-[60px] ${
+                      isSelected
+                        ? "bg-yellow-400 text-black border-yellow-400"
+                        : "bg-purple-900/30 text-purple-300 border-purple-700/50 hover:border-purple-500"
+                    }`}>
+                    <span className="text-base">{w.emoji}</span>
+                    <span className="mt-0.5 text-center leading-tight">{w.name.split(" ")[0]}</span>
                   </button>
                 );
               })}
