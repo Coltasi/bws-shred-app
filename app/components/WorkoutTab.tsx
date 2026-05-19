@@ -52,8 +52,11 @@ type ExerciseLog = Record<string, SetData[]>;
 type CustomWorkout = { key: string; name: string; emoji: string; exercises: Exercise[] };
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const ROTATION_KEY = "bws-rotation-index";
+const ROTATION_KEY    = "bws-rotation-index";
 const MY_WORKOUTS_KEY = "bws-my-workouts";
+const DATED_LOG_KEY   = "bws-dated-log";
+
+type WorkoutSession = { date: string; key: string; name: string; emoji: string; log: ExerciseLog };
 
 const EMOJI_OPTIONS = ["🏋️","🔥","⚡","💥","🥊","🤸","🎯","🏃","🚴","🧘","🪃","🫀","💪","🦾","🏆","⚙️","🌊","🧗","🥋","🎽"];
 
@@ -101,12 +104,23 @@ function loadSession(k: string): ExerciseLog {
     return p; // legacy format (plain ExerciseLog)
   } catch { return {}; }
 }
-function saveSession(k: string, log: ExerciseLog) {
-  // Stamp with today's date so we auto-reset tomorrow
+function saveSession(k: string, log: ExerciseLog, meta?: { name: string; emoji: string }) {
   localStorage.setItem(sessionKey(k), JSON.stringify({ date: new Date().toDateString(), log }));
-  // Live-save to history whenever there's any weight data
   const hasWeight = Object.values(log).some(sets => sets.some(s => s.weight.trim() !== ""));
-  if (hasWeight) localStorage.setItem(historyKey(k), JSON.stringify(log));
+  if (hasWeight) {
+    localStorage.setItem(historyKey(k), JSON.stringify(log));
+    if (meta) {
+      try {
+        const all: WorkoutSession[] = JSON.parse(localStorage.getItem(DATED_LOG_KEY) || "[]");
+        const today = new Date().toDateString();
+        const without = all.filter(s => !(s.date === today && s.key === k));
+        localStorage.setItem(DATED_LOG_KEY, JSON.stringify([
+          ...without,
+          { date: today, key: k, name: meta.name, emoji: meta.emoji, log },
+        ]));
+      } catch { /* ignore */ }
+    }
+  }
 }
 function loadHistory(k: string): ExerciseLog {
   try { return JSON.parse(localStorage.getItem(historyKey(k)) || "{}"); } catch { return {}; }
@@ -292,7 +306,7 @@ export default function WorkoutTab() {
     const updated = getSets(ex).map((s, i) => i === setIdx ? { ...s, ...patch } : s);
     const newSession = { ...session, [ex.name]: updated };
     setSession(newSession);
-    saveSession(selectedKey, newSession);
+    saveSession(selectedKey, newSession, workout ? { name: workout.name, emoji: workout.emoji } : undefined);
   }
 
   function toggleDone(ex: Exercise, setIdx: number) {
