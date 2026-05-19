@@ -90,10 +90,23 @@ function getRotationIndex() {
   return parseInt(localStorage.getItem(ROTATION_KEY) || "0", 10) % workoutRotation.length;
 }
 function loadSession(k: string): ExerciseLog {
-  try { return JSON.parse(localStorage.getItem(sessionKey(k)) || "{}"); } catch { return {}; }
+  try {
+    const raw = localStorage.getItem(sessionKey(k));
+    if (!raw) return {};
+    const p = JSON.parse(raw);
+    // New format: { date, log } — reset if it's from a previous day
+    if (p.date !== undefined) {
+      return p.date === new Date().toDateString() ? (p.log ?? {}) : {};
+    }
+    return p; // legacy format (plain ExerciseLog)
+  } catch { return {}; }
 }
 function saveSession(k: string, log: ExerciseLog) {
-  localStorage.setItem(sessionKey(k), JSON.stringify(log));
+  // Stamp with today's date so we auto-reset tomorrow
+  localStorage.setItem(sessionKey(k), JSON.stringify({ date: new Date().toDateString(), log }));
+  // Live-save to history whenever there's any weight data
+  const hasWeight = Object.values(log).some(sets => sets.some(s => s.weight.trim() !== ""));
+  if (hasWeight) localStorage.setItem(historyKey(k), JSON.stringify(log));
 }
 function loadHistory(k: string): ExerciseLog {
   try { return JSON.parse(localStorage.getItem(historyKey(k)) || "{}"); } catch { return {}; }

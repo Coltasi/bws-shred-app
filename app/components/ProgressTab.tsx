@@ -7,6 +7,8 @@ type WeightEntry = { date: string; weight: number };
 type DailyLog = { date: string; workoutDone: boolean; waterCount: number };
 type SetData = { done: boolean; weight: string; reps: string };
 type ExerciseLog = Record<string, SetData[]>;
+type CustomWorkout = { key: string; name: string; emoji: string; exercises: { name: string; sets: string; reps: string; rest?: string; notes?: string }[] };
+const MY_WORKOUTS_KEY = "bws-my-workouts";
 
 function getDateKey(offset = 0): string {
   const d = new Date();
@@ -38,6 +40,7 @@ export default function ProgressTab() {
   const [selectedWorkout, setSelectedWorkout] = useState<string>("Upper");
   const [historyData, setHistoryData] = useState<Record<string, ExerciseLog>>({});
   const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
+  const [myWorkouts, setMyWorkouts] = useState<CustomWorkout[]>([]);
 
   const todayKey = getDateKey(0);
 
@@ -63,21 +66,33 @@ export default function ProgressTab() {
     }
     setDailyLogs(logs);
 
+    const myWs: CustomWorkout[] = (() => {
+      try { return JSON.parse(localStorage.getItem(MY_WORKOUTS_KEY) || "[]"); } catch { return []; }
+    })();
+    setMyWorkouts(myWs);
+
+    const allWorkoutKeys = [...workoutRotation, ...myWs.map(w => w.key)];
     const history: Record<string, ExerciseLog> = {};
-    for (const key of workoutRotation) {
-      // Prefer current active session, fall back to archived history
-      const session = localStorage.getItem(`bws-session-${key}`);
+    for (const key of allWorkoutKeys) {
+      // Prefer archived history (saved on weight entry or completion), fall back to active session
       const archived = localStorage.getItem(`bws-history-${key}`);
-      const raw = session || archived;
+      const sessionRaw = localStorage.getItem(`bws-session-${key}`);
+      // Session may be date-wrapped: { date, log }
+      let sessionLog: ExerciseLog | null = null;
+      if (sessionRaw) {
+        try {
+          const p = JSON.parse(sessionRaw);
+          sessionLog = p.log !== undefined ? p.log : p;
+        } catch { /* skip */ }
+      }
+      const raw = archived || (sessionLog ? JSON.stringify(sessionLog) : null);
       if (raw) {
         try {
           const parsed: ExerciseLog = JSON.parse(raw);
-          // Only use if it actually has logged weight data
           const hasData = Object.values(parsed).some(sets =>
             sets.some(s => s.weight && s.weight.trim() !== "")
           );
           if (hasData) history[key] = parsed;
-          else if (archived) history[key] = JSON.parse(archived);
         } catch { /* skip */ }
       }
     }
@@ -142,9 +157,11 @@ export default function ProgressTab() {
     { id: "streak",   label: "Streaks" },
   ] as const;
 
-  const workoutExercises = workouts[selectedWorkout]?.exercises ?? [];
+  const selectedMyWorkout = myWorkouts.find(w => w.key === selectedWorkout);
+  const workoutExercises = selectedMyWorkout?.exercises ?? workouts[selectedWorkout]?.exercises ?? [];
   const lastSession = historyData[selectedWorkout] ?? {};
-  const hasAnyHistory = workoutRotation.some(k => historyData[k] && Object.keys(historyData[k]).length > 0);
+  const allKeys = [...workoutRotation, ...myWorkouts.map(w => w.key)];
+  const hasAnyHistory = allKeys.some(k => historyData[k] && Object.keys(historyData[k]).length > 0);
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -362,6 +379,25 @@ export default function ProgressTab() {
                 </button>
               );
             })}
+            {myWorkouts.map(w => {
+              const hasData = !!historyData[w.key] && Object.keys(historyData[w.key]).length > 0;
+              return (
+                <button
+                  key={w.key}
+                  onClick={() => setSelectedWorkout(w.key)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    selectedWorkout === w.key
+                      ? "bg-yellow-400 text-black border-yellow-400"
+                      : "bg-purple-900/40 text-purple-300 border-purple-700/50"
+                  }`}
+                >
+                  {w.emoji} {w.name.split(" ")[0]}
+                  {hasData && selectedWorkout !== w.key && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {!hasAnyHistory ? (
@@ -373,7 +409,9 @@ export default function ProgressTab() {
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">{workouts[selectedWorkout]?.name}</p>
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
+                  {selectedMyWorkout?.name ?? workouts[selectedWorkout]?.name}
+                </p>
                 {!historyData[selectedWorkout] && (
                   <p className="text-xs text-gray-600">No data yet for this workout</p>
                 )}
