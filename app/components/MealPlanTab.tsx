@@ -69,11 +69,11 @@ const MEAL_PREP_CONTAINERS = [
 ];
 
 const containerColors: Record<string, string> = {
-  blue:   "text-blue-400 bg-blue-400/10 border-blue-500/30",
-  green:  "text-green-400 bg-green-400/10 border-green-500/30",
-  orange: "text-orange-400 bg-orange-400/10 border-orange-500/30",
-  purple: "text-purple-400 bg-purple-400/10 border-purple-500/30",
-  red:    "text-red-400 bg-red-400/10 border-red-500/30",
+  blue:   "text-info bg-blue-400/10 border-blue-500/30",
+  green:  "text-good bg-green-400/10 border-green-500/30",
+  orange: "text-warn bg-orange-400/10 border-orange-500/30",
+  purple: "text-alt bg-purple-400/10 border-purple-500/30",
+  red:    "text-bad bg-red-400/10 border-red-500/30",
 };
 
 const categoryIcons: Record<string, string> = {
@@ -110,7 +110,7 @@ export default function MealPlanTab() {
     <div className="px-4 py-4 space-y-4">
       {/* Header */}
       <div>
-        <h2 className="text-lg font-bold text-white">Meal Plan</h2>
+        <h2 className="text-lg font-bold text-gray-200">Meal Plan</h2>
         <p className="text-xs text-gray-500">Shred protocol · ~1,300–1,500 cal/day</p>
       </div>
 
@@ -121,7 +121,7 @@ export default function MealPlanTab() {
             key={v}
             onClick={() => setView(v)}
             className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all capitalize ${
-              view === v ? "bg-yellow-400 text-black" : "text-gray-400 hover:text-gray-300"
+              view === v ? "bg-yellow-400 text-on-accent" : "text-gray-400 hover:text-gray-300"
             }`}
           >
             {v === "daily" ? "Daily" : v === "prep" ? "Prep Guide" : "Shopping"}
@@ -140,9 +140,9 @@ export default function MealPlanTab() {
                 onClick={() => setSelectedDay(day)}
                 className={`flex-shrink-0 px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
                   selectedDay === day
-                    ? "bg-yellow-400 text-black border-yellow-400"
+                    ? "bg-yellow-400 text-on-accent border-yellow-400"
                     : day === todayName
-                    ? "bg-yellow-400/10 text-yellow-300 border-yellow-500/30"
+                    ? "bg-yellow-400/10 text-accent border-yellow-500/30"
                     : "bg-gray-900/50 text-gray-500 border-gray-800 hover:border-gray-600"
                 }`}
               >
@@ -154,9 +154,9 @@ export default function MealPlanTab() {
           {/* Macro Summary */}
           <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/5 border border-yellow-500/20 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-white text-sm">{selectedDay}&apos;s Totals</h3>
+              <h3 className="font-bold text-gray-200 text-sm">{selectedDay}&apos;s Totals</h3>
               {selectedDay === todayName && (
-                <span className="text-xs bg-yellow-400/20 text-yellow-300 px-2 py-0.5 rounded-full">Today</span>
+                <span className="text-xs bg-yellow-400/20 text-accent px-2 py-0.5 rounded-full">Today</span>
               )}
             </div>
             <div className="grid grid-cols-4 gap-2">
@@ -181,7 +181,7 @@ export default function MealPlanTab() {
         <div className="space-y-4">
           {/* Intro card */}
           <div className="bg-yellow-400/5 border border-yellow-500/20 rounded-2xl p-4">
-            <p className="text-sm font-bold text-yellow-400 mb-1">Sunday Prep Session</p>
+            <p className="text-sm font-bold text-accent mb-1">Sunday Prep Session</p>
             <p className="text-xs text-gray-400 leading-relaxed">
               Fill all 5 glass containers in one 45-min cook. Each container = one lunch for the week.
               Refrigerate 1–4, freeze container 5 if needed.
@@ -191,25 +191,25 @@ export default function MealPlanTab() {
           {/* Breakfast — daily routine */}
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Breakfast (daily, ~5 min)</p>
-            <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4 space-y-3">
+            <div className="bg-card border border-gray-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-md bg-gray-800 flex items-center justify-center text-xs text-yellow-400 flex-shrink-0 mt-0.5">1</span>
+                <span className="w-6 h-6 rounded-md bg-gray-800 flex items-center justify-center text-xs text-accent flex-shrink-0 mt-0.5">1</span>
                 <div>
-                  <p className="text-sm font-semibold text-white">Café solo / cortado</p>
+                  <p className="text-sm font-semibold text-gray-200">Café solo / cortado</p>
                   <p className="text-xs text-gray-500">Not tracked. Just make it strong.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-md bg-gray-800 flex items-center justify-center text-xs text-yellow-400 flex-shrink-0 mt-0.5">2</span>
+                <span className="w-6 h-6 rounded-md bg-gray-800 flex items-center justify-center text-xs text-accent flex-shrink-0 mt-0.5">2</span>
                 <div>
-                  <p className="text-sm font-semibold text-white">Greek Yogurt Bowl</p>
+                  <p className="text-sm font-semibold text-gray-200">Greek Yogurt Bowl</p>
                   <p className="text-xs text-gray-500">200g yogur griego + frutos rojos + optional miel. 180 cal · 18g protein</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <span className="w-6 h-6 rounded-md bg-gray-800 flex items-center justify-center text-xs text-yellow-400 flex-shrink-0 mt-0.5">3</span>
+                <span className="w-6 h-6 rounded-md bg-gray-800 flex items-center justify-center text-xs text-accent flex-shrink-0 mt-0.5">3</span>
                 <div>
-                  <p className="text-sm font-semibold text-white">Protein Smoothie</p>
+                  <p className="text-sm font-semibold text-gray-200">Protein Smoothie</p>
                   <p className="text-xs text-gray-500">1 scoop whey + plátano + leche avena + frutos rojos. 310 cal · 30g protein</p>
                 </div>
               </div>
@@ -274,7 +274,7 @@ export default function MealPlanTab() {
 
           {/* Dinner note */}
           <div className="bg-purple-400/5 border border-purple-500/20 rounded-2xl p-4">
-            <p className="text-xs font-bold text-purple-400 mb-1">Dinner</p>
+            <p className="text-xs font-bold text-alt mb-1">Dinner</p>
             <p className="text-xs text-gray-400 leading-relaxed">
               Your wife handles dinner — all the BWS recipes work perfectly. Show her the Recipes tab for step-by-step guides.
               Korean Beef Bowl and Chicken Fajita Bowl are crowd-pleasers.
@@ -296,9 +296,9 @@ export default function MealPlanTab() {
       {view === "shopping" && (
         <div className="space-y-4">
           {/* Progress bar */}
-          <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
+          <div className="bg-card border border-gray-800 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-bold text-white">Lista de la Compra</p>
+              <p className="text-sm font-bold text-gray-200">Lista de la Compra</p>
               <p className="text-xs text-gray-500">{checkedCount}/{totalItems} ticked</p>
             </div>
             <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -324,10 +324,10 @@ export default function MealPlanTab() {
           {barcelonaShoppingList.map((category) => (
             <div key={category.title}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-yellow-500 text-sm">{categoryIcons[category.title] ?? "·"}</span>
-                <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider">{category.title}</p>
+                <span className="text-accent text-sm">{categoryIcons[category.title] ?? "·"}</span>
+                <p className="text-xs font-bold text-accent uppercase tracking-wider">{category.title}</p>
               </div>
-              <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl overflow-hidden">
+              <div className="bg-card border border-gray-800 rounded-2xl overflow-hidden">
                 {category.items.map((item, idx) => {
                   const key = `${category.title}-${idx}`;
                   const checked = checkedItems[key] || false;
@@ -340,12 +340,12 @@ export default function MealPlanTab() {
                       } ${checked ? "opacity-40" : "hover:bg-gray-900/50"}`}
                     >
                       <span className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 text-xs ${
-                        checked ? "bg-green-500 text-white" : "bg-gray-800 text-gray-600"
+                        checked ? "bg-green-500 text-gray-200" : "bg-gray-800 text-gray-600"
                       }`}>
                         {checked ? "✓" : ""}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${checked ? "line-through text-gray-500" : "text-white"}`}>
+                        <p className={`text-sm ${checked ? "line-through text-gray-500" : "text-gray-200"}`}>
                           {item.name}
                         </p>
                         {item.note && (
@@ -375,22 +375,22 @@ function MealCard({
 }) {
   const r = getMacros(mealName);
   const colorMap: Record<string, string> = {
-    yellow: "text-yellow-400",
-    blue: "text-blue-400",
-    purple: "text-purple-400",
-    green: "text-green-400",
+    yellow: "text-accent",
+    blue: "text-info",
+    purple: "text-alt",
+    green: "text-good",
   };
 
   return (
-    <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
+    <div className="bg-card border border-gray-800 rounded-2xl p-4">
       <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${colorMap[labelColor]}`}>{label}</p>
-      <p className="text-white font-semibold text-sm">{mealName}</p>
+      <p className="text-gray-200 font-semibold text-sm">{mealName}</p>
       {r && (
         <div className="flex gap-3 mt-2">
           <span className="text-xs text-gray-500">{r.calories} cal</span>
-          <span className="text-xs text-blue-400/80">{r.protein}g protein</span>
-          <span className="text-xs text-green-400/80">{r.carbs}g carbs</span>
-          <span className="text-xs text-orange-400/80">{r.fat}g fat</span>
+          <span className="text-xs text-info/80">{r.protein}g protein</span>
+          <span className="text-xs text-good/80">{r.carbs}g carbs</span>
+          <span className="text-xs text-warn/80">{r.fat}g fat</span>
         </div>
       )}
       {r && (
@@ -399,7 +399,7 @@ function MealCard({
           <ul className="space-y-1">
             {r.ingredients.slice(0, 4).map((ing, i) => (
               <li key={i} className="text-xs text-gray-400 flex items-start gap-1.5">
-                <span className="text-yellow-500 mt-0.5">·</span>
+                <span className="text-accent mt-0.5">·</span>
                 <span>{ing}</span>
               </li>
             ))}
@@ -425,10 +425,10 @@ function MacroStat({
   color: string;
 }) {
   const colorMap: Record<string, string> = {
-    yellow: "text-yellow-400",
-    blue: "text-blue-400",
-    green: "text-green-400",
-    orange: "text-orange-400",
+    yellow: "text-accent",
+    blue: "text-info",
+    green: "text-good",
+    orange: "text-warn",
   };
   return (
     <div className="text-center">

@@ -44,7 +44,7 @@ export default function RecipesTab() {
           placeholder="Search recipes..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-[#0f0f1a] border border-gray-800 rounded-xl pl-9 pr-4 py-3 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50"
+          className="w-full bg-card border border-gray-800 rounded-xl pl-9 pr-4 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-yellow-500/50"
         />
       </div>
 
@@ -56,7 +56,7 @@ export default function RecipesTab() {
             onClick={() => setFilter(f.id)}
             className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
               filter === f.id
-                ? "bg-yellow-400 text-black border-yellow-400"
+                ? "bg-yellow-400 text-on-accent border-yellow-400"
                 : "bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-600"
             }`}
           >
@@ -91,11 +91,11 @@ export default function RecipesTab() {
 
 function MacroPill({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
   const colorMap: Record<string, string> = {
-    yellow: "bg-yellow-400/10 text-yellow-300",
-    blue: "bg-blue-400/10 text-blue-300",
-    green: "bg-green-400/10 text-green-300",
-    orange: "bg-orange-400/10 text-orange-300",
-    red: "bg-red-400/10 text-red-300",
+    yellow: "bg-yellow-400/10 text-accent",
+    blue: "bg-blue-400/10 text-info",
+    green: "bg-green-400/10 text-good",
+    orange: "bg-orange-400/10 text-warn",
+    red: "bg-red-400/10 text-bad",
   };
   return (
     <span className={`inline-flex items-center gap-0.5 px-2 py-1 rounded-lg text-xs font-semibold ${colorMap[color]}`}>
@@ -106,7 +106,7 @@ function MacroPill({ label, value, unit, color }: { label: string; value: number
 
 function RecipeCard({ recipe, isOpen, onToggle }: { recipe: Recipe; isOpen: boolean; onToggle: () => void }) {
   return (
-    <div className={`bg-[#0f0f1a] border rounded-2xl overflow-hidden transition-all ${
+    <div className={`bg-card border rounded-2xl overflow-hidden transition-all ${
       isOpen ? "border-yellow-500/30" : "border-gray-800"
     }`}>
       {/* Card Header */}
@@ -117,24 +117,24 @@ function RecipeCard({ recipe, isOpen, onToggle }: { recipe: Recipe; isOpen: bool
               <span className="text-lg">{CATEGORY_EMOJI[recipe.category]}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                 recipe.type === "shred"
-                  ? "bg-orange-500/20 text-orange-300"
+                  ? "bg-orange-500/20 text-warn"
                   : recipe.type === "build"
-                  ? "bg-blue-500/20 text-blue-300"
-                  : "bg-purple-500/20 text-purple-300"
+                  ? "bg-blue-500/20 text-info"
+                  : "bg-purple-500/20 text-alt"
               }`}>
                 {recipe.type === "both" ? "Shred + Build" : recipe.type.charAt(0).toUpperCase() + recipe.type.slice(1)}
               </span>
             </div>
-            <h3 className="font-bold text-white text-sm">{recipe.name}</h3>
+            <h3 className="font-bold text-gray-200 text-sm">{recipe.name}</h3>
             <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
               <span>⏱ {recipe.prepTime} prep</span>
               <span>🔥 {recipe.cookTime} cook</span>
             </div>
           </div>
           <div className="text-right flex-shrink-0">
-            <p className="text-lg font-bold text-yellow-400">{recipe.calories}</p>
+            <p className="text-lg font-bold text-accent">{recipe.calories}</p>
             <p className="text-[10px] text-gray-500">calories</p>
-            <p className="text-xs text-blue-400 font-semibold mt-0.5">{recipe.protein}g protein</p>
+            <p className="text-xs text-info font-semibold mt-0.5">{recipe.protein}g protein</p>
           </div>
         </div>
 
@@ -156,11 +156,11 @@ function RecipeCard({ recipe, isOpen, onToggle }: { recipe: Recipe; isOpen: bool
         <div className="border-t border-gray-800/50 px-4 pb-4 pt-3 space-y-4">
           {/* Ingredients */}
           <div>
-            <h4 className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-2">Ingredients</h4>
+            <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2">Ingredients</h4>
             <ul className="space-y-1.5">
               {recipe.ingredients.map((ing, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                  <span className="text-yellow-500/60 mt-1 text-xs">•</span>
+                  <span className="text-accent/60 mt-1 text-xs">•</span>
                   <span>{ing}</span>
                 </li>
               ))}
@@ -169,11 +169,11 @@ function RecipeCard({ recipe, isOpen, onToggle }: { recipe: Recipe; isOpen: bool
 
           {/* Steps */}
           <div>
-            <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Instructions</h4>
+            <h4 className="text-xs font-bold text-info uppercase tracking-wider mb-2">Instructions</h4>
             <ol className="space-y-2.5">
               {recipe.steps.map((step, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">
+                  <span className="w-5 h-5 rounded-full bg-blue-500/20 text-info text-xs flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">
                     {i + 1}
                   </span>
                   <p className="text-sm text-gray-300 leading-relaxed">{step}</p>
@@ -207,9 +207,9 @@ function MacroBar({ protein, carbs, fat }: { protein: number; carbs: number; fat
         <div className="bg-orange-400 rounded-r-full" style={{ width: `${fPct}%` }} />
       </div>
       <div className="flex justify-between mt-1.5 text-[10px] text-gray-500">
-        <span className="text-blue-400">{pPct}% protein</span>
-        <span className="text-green-400">{cPct}% carbs</span>
-        <span className="text-orange-400">{fPct}% fat</span>
+        <span className="text-info">{pPct}% protein</span>
+        <span className="text-good">{cPct}% carbs</span>
+        <span className="text-warn">{fPct}% fat</span>
       </div>
     </div>
   );

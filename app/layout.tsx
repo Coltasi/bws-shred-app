@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import ServiceWorkerRegistrar from "./components/ServiceWorkerRegistrar";
+import AppBoot from "./components/AppBoot";
 
 export const metadata: Metadata = {
   title: "BWS Shred | Colin's Program",
@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "BWS Shred",
   },
   icons: {
@@ -24,7 +24,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#f59e0b",
+  themeColor: "#eef4f7",
 };
 
 export default function RootLayout({
@@ -35,8 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-[#0a0a0f] text-white antialiased">
-        <ServiceWorkerRegistrar />
-        {children}
+        <AppBoot>{children}</AppBoot>
       </body>
     </html>
   );
