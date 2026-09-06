@@ -1,32 +1,274 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0a0a0f;
-  --foreground: #f0f0f0;
+/* ===========================================================================
+   THEME TOKENS
+   ---------------------------------------------------------------------------
+   Every colour in the app resolves through the variables below. Tailwind's
+   built-in `gray`, `yellow`, `green`, `blue`, `purple`, `orange` and `red`
+   scales are remapped onto them, which means the existing utility classes
+   scattered across ~4000 lines of components keep working untouched and the
+   whole palette is swappable from this one file.
+
+   The semantic roles the old dark theme used, and what they now mean:
+
+     gray-900 → recessed surface (inputs)
+     gray-800 → raised surface (buttons, chips)
+     gray-700 → strongly raised surface / heavy border
+     gray-600 → hairline text, placeholders
+     gray-500 → muted label text
+     gray-400 → secondary body text
+     gray-300 → primary body text
+     gray-200 → strongest text
+
+     yellow   → primary accent (actions, selection, progress)
+     green    → positive / on-target
+     red      → negative / over-target
+     blue     → secondary data series
+     purple   → tertiary data series / custom items
+     orange   → caution
+
+   Switch palettes by setting `data-theme` on <html>. Default is "tide".
+   =========================================================================== */
+
+:root,
+[data-theme="tide"] {
+  /* Tidewater — teal primary, blue support, pink highlight, on pale blue-grey.
+     Calm and clinical. Reads as a health instrument rather than a gym app. */
+  --page:      #eef4f7;
+  --card:      #ffffff;
+
+  --s900:      #e9f1f5;   /* inputs           */
+  --s800:      #dfeaf0;   /* buttons          */
+  --s700:      #cddde6;   /* raised / borders */
+  --t600:      #93a9b4;   /* hairline         */
+  --t500:      #64818f;   /* muted label      */
+  --t400:      #4a6674;   /* secondary body   */
+  --t300:      #22414f;   /* primary body     */
+  --t200:      #0d2733;   /* strongest        */
+
+  --accent-500: #14b8a6;  /* fills            */
+  --accent-600: #0d9488;  /* text on light    */
+  --accent-400: #5eead4;  /* soft fills       */
+  --on-accent:  #04302c;  /* text on a fill   */
+
+  --good-500:  #10b981;
+  --good-600:  #047857;
+  --good-400:  #6ee7b7;
+
+  --bad-500:   #f43f5e;
+  --bad-600:   #be123c;
+  --bad-400:   #fda4af;
+
+  --info-500:  #3b82f6;
+  --info-600:  #1d4ed8;
+  --info-400:  #93c5fd;
+
+  --alt-500:   #ec4899;   /* pink */
+  --alt-600:   #be185d;
+  --alt-400:   #f9a8d4;
+
+  --warn-500:  #f97316;
+  --warn-600:  #c2410c;
+  --warn-400:  #fdba74;
 }
 
-* {
-  box-sizing: border-box;
+[data-theme="coast"] {
+  /* Coast — blue primary, teal support, coral highlight. Warmer, more
+     energetic, closer to a conventional training app. */
+  --page:      #f2f6fb;
+  --card:      #ffffff;
+
+  --s900:      #edf3fa;
+  --s800:      #e2ebf6;
+  --s700:      #cfddee;
+  --t600:      #97a8bd;
+  --t500:      #667e99;
+  --t400:      #4b6480;
+  --t300:      #223c5a;
+  --t200:      #0d2340;
+
+  --accent-500: #3b82f6;
+  --accent-600: #1d4ed8;
+  --accent-400: #93c5fd;
+  --on-accent:  #ffffff;
+
+  --good-500:  #14b8a6;
+  --good-600:  #0f766e;
+  --good-400:  #5eead4;
+
+  --bad-500:   #f43f5e;
+  --bad-600:   #be123c;
+  --bad-400:   #fda4af;
+
+  --info-500:  #06b6d4;
+  --info-600:  #0e7490;
+  --info-400:  #67e8f9;
+
+  --alt-500:   #f472b6;
+  --alt-600:   #db2777;
+  --alt-400:   #fbcfe8;
+
+  --warn-500:  #f59e0b;
+  --warn-600:  #b45309;
+  --warn-400:  #fcd34d;
 }
 
-html,
-body {
+[data-theme="sorbet"] {
+  /* Sorbet — pink primary, teal support, on a near-white with a lilac cast.
+     The boldest of the three. Best if you want the app to feel unlike
+     every other fitness tracker. */
+  --page:      #f8f4f8;
+  --card:      #ffffff;
+
+  --s900:      #f4eef4;
+  --s800:      #ece3ec;
+  --s700:      #ddd0de;
+  --t600:      #a89aaa;
+  --t500:      #77687a;
+  --t400:      #5b4d5e;
+  --t300:      #362c39;
+  --t200:      #1e171f;
+
+  --accent-500: #ec4899;
+  --accent-600: #be185d;
+  --accent-400: #f9a8d4;
+  --on-accent:  #ffffff;
+
+  --good-500:  #14b8a6;
+  --good-600:  #0f766e;
+  --good-400:  #5eead4;
+
+  --bad-500:   #ef4444;
+  --bad-600:   #b91c1c;
+  --bad-400:   #fca5a5;
+
+  --info-500:  #6366f1;
+  --info-600:  #4338ca;
+  --info-400:  #a5b4fc;
+
+  --alt-500:   #0ea5e9;
+  --alt-600:   #0369a1;
+  --alt-400:   #7dd3fc;
+
+  --warn-500:  #f59e0b;
+  --warn-600:  #b45309;
+  --warn-400:  #fcd34d;
+}
+
+[data-theme="midnight"] {
+  /* The original dark scheme, kept so the change is reversible and so there's
+     a low-light option for early-morning training. */
+  --page:      #0a0a0f;
+  --card:      #0f0f1a;
+
+  --s900:      #111827;
+  --s800:      #1f2937;
+  --s700:      #374151;
+  --t600:      #4b5563;
+  --t500:      #6b7280;
+  --t400:      #9ca3af;
+  --t300:      #d1d5db;
+  --t200:      #e5e7eb;
+
+  --accent-500: #facc15;
+  --accent-600: #facc15;
+  --accent-400: #fde047;
+  --on-accent:  #000000;
+
+  --good-500:  #4ade80; --good-600: #4ade80; --good-400: #86efac;
+  --bad-500:   #f87171; --bad-600:  #f87171; --bad-400:  #fca5a5;
+  --info-500:  #60a5fa; --info-600: #60a5fa; --info-400: #93c5fd;
+  --alt-500:   #c084fc; --alt-600:  #c084fc; --alt-400:  #d8b4fe;
+  --warn-500:  #fb923c; --warn-600: #fb923c; --warn-400: #fdba74;
+}
+
+/* ---------------------------------------------------------------------------
+   Remap Tailwind's palette onto the tokens above.
+   --------------------------------------------------------------------------- */
+@theme inline {
+  --color-gray-900: var(--s900);
+  --color-gray-800: var(--s800);
+  --color-gray-700: var(--s700);
+  --color-gray-600: var(--t600);
+  --color-gray-500: var(--t500);
+  --color-gray-400: var(--t400);
+  --color-gray-300: var(--t300);
+  --color-gray-200: var(--t200);
+  --color-gray-100: var(--t200);
+
+  /* Primary accent. `text-yellow-*` is separately sed-ed to `text-accent`
+     because a fill colour and a text colour on a light ground cannot be the
+     same value and still pass contrast. */
+  --color-yellow-300: var(--accent-400);
+  --color-yellow-400: var(--accent-500);
+  --color-yellow-500: var(--accent-500);
+  --color-yellow-600: var(--accent-600);
+
+  --color-green-300: var(--good-400);
+  --color-green-400: var(--good-500);
+  --color-green-500: var(--good-500);
+  --color-green-600: var(--good-600);
+
+  --color-red-300: var(--bad-400);
+  --color-red-400: var(--bad-500);
+  --color-red-500: var(--bad-500);
+  --color-red-600: var(--bad-600);
+
+  --color-blue-300: var(--info-400);
+  --color-blue-400: var(--info-500);
+  --color-blue-500: var(--info-500);
+  --color-blue-600: var(--info-600);
+
+  --color-purple-300: var(--alt-400);
+  --color-purple-400: var(--alt-500);
+  --color-purple-500: var(--alt-500);
+  --color-purple-600: var(--alt-600);
+  --color-purple-700: var(--alt-600);
+  --color-purple-900: var(--alt-400);
+
+  --color-orange-300: var(--warn-400);
+  --color-orange-400: var(--warn-500);
+  --color-orange-500: var(--warn-500);
+  --color-orange-600: var(--warn-600);
+
+  /* Semantic aliases used directly by the newer components. */
+  --color-page:       var(--page);
+  --color-card:       var(--card);
+  --color-accent:     var(--accent-600);
+  --color-accent-fill:var(--accent-500);
+  --color-accent-soft:var(--accent-400);
+  --color-on-accent:  var(--on-accent);
+  --color-good:       var(--good-600);
+  --color-bad:        var(--bad-600);
+  --color-info:       var(--info-600);
+  --color-alt:        var(--alt-600);
+  --color-warn:       var(--warn-600);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
   max-width: 100vw;
   overflow-x: hidden;
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--page);
+  color: var(--t300);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: #1a1a2e;
-}
-::-webkit-scrollbar-thumb {
-  background: #f59e0b;
-  border-radius: 2px;
-}
+/* Text sitting on a filled accent button. */
+.on-accent { color: var(--on-accent); }
 
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--s900); }
+::-webkit-scrollbar-thumb { background: var(--accent-500); border-radius: 2px; }
+
+/* Respect a user who has asked for reduced motion — spinners and bars here are
+   decorative, not informative. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

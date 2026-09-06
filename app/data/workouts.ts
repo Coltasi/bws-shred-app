@@ -1,3 +1,5 @@
+import { kettlebellWorkouts, KB_KEYS } from "./kettlebell";
+
 export type Exercise = {
   name: string;
   sets: string;
@@ -34,6 +36,23 @@ export const weekSchedule: WeekDay[] = [
 // Rotating order — workouts cycle through regardless of day of week
 export const workoutRotation = ["Upper", "Lower", "Push", "Pull", "Legs"] as const;
 export type WorkoutKey = typeof workoutRotation[number];
+
+export type Modality = "barbell" | "kettlebell";
+
+/**
+ * Which modality each built-in workout belongs to.
+ *
+ * Kettlebell is the primary modality here, not a fallback. The Apr–Jul 2026
+ * body-composition data (−4.0 kg fat with muscle mass held) came from
+ * kettlebell training; the BWS barbell sessions are the alternative for gym
+ * days. Keeping the two tagged means the Progress tab can answer "which one am
+ * I actually doing, and which one moved the numbers" with evidence rather than
+ * opinion.
+ */
+export const MODALITY: Record<string, Modality> = {
+  Upper: "barbell", Lower: "barbell", Push: "barbell", Pull: "barbell", Legs: "barbell",
+  KBRamp: "kettlebell", KBStrength: "kettlebell", KBConditioning: "kettlebell",
+};
 
 export const workouts: Record<string, Workout> = {
   Upper: {
@@ -279,3 +298,18 @@ export const workouts: Record<string, Workout> = {
     ],
   },
 };
+
+// ── Merged registries ──────────────────────────────────────────────────────
+// kettlebell.ts imports only the `Workout` *type* from here, which TypeScript
+// erases at compile time, so there is no runtime import cycle.
+
+/** Every built-in workout, both modalities, keyed the same way. */
+export const allWorkouts: Record<string, Workout> = {
+  ...workouts,
+  ...kettlebellWorkouts,
+};
+
+/** Default picker order: kettlebell first, since that is the primary modality. */
+export const allWorkoutKeys: string[] = [...KB_KEYS, ...workoutRotation];
+
+export { kettlebellWorkouts, KB_KEYS };

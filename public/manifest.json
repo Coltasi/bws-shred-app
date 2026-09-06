@@ -1,11 +1,11 @@
 {
   "name": "BWS Shred",
   "short_name": "BWS Shred",
-  "description": "Built With Science – Shred Program: Workouts, Meal Plan & Progress Tracker",
+  "description": "Built With Science + kettlebell training, adaptive TDEE, and Tanita body-composition tracking.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0a0f",
-  "theme_color": "#f59e0b",
+  "background_color": "#eef4f7",
+  "theme_color": "#eef4f7",
   "orientation": "portrait",
   "icons": [
     {

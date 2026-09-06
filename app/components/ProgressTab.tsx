@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { workouts, workoutRotation } from "../data/workouts";
+import { getItem, setItem, removeItem } from "../lib/store";
 
 type WeightEntry    = { date: string; weight: number };
 type DailyLog       = { date: string; workoutDone: boolean; waterCount: number };
@@ -62,16 +63,16 @@ export default function ProgressTab() {
   const todayKey = getDateKey(0);
 
   useEffect(() => {
-    const saved = localStorage.getItem("bws-weight-log");
+    const saved = getItem("bws-weight-log");
     if (saved) setWeightEntries(JSON.parse(saved));
 
-    const savedUnit = localStorage.getItem("bws-weight-unit") as "kg" | "lbs" | null;
+    const savedUnit = getItem("bws-weight-unit") as "kg" | "lbs" | null;
     if (savedUnit) setWeightUnit(savedUnit);
 
     const logs: DailyLog[] = [];
     for (let i = 0; i < 14; i++) {
       const key = getDateKey(i);
-      const raw = localStorage.getItem(`bws-today-${key}`);
+      const raw = getItem(`bws-today-${key}`);
       if (raw) {
         const parsed = JSON.parse(raw);
         logs.push({ date: key, workoutDone: parsed.workoutDone || false, waterCount: parsed.water || 0 });
@@ -80,15 +81,15 @@ export default function ProgressTab() {
     setDailyLogs(logs);
 
     const myWs: CustomWorkout[] = (() => {
-      try { return JSON.parse(localStorage.getItem(MY_WORKOUTS_KEY) || "[]"); } catch { return []; }
+      try { return JSON.parse(getItem(MY_WORKOUTS_KEY) || "[]"); } catch { return []; }
     })();
     setMyWorkouts(myWs);
 
     const allWorkoutKeys = [...workoutRotation, ...myWs.map(w => w.key)];
     const history: Record<string, ExerciseLog> = {};
     for (const key of allWorkoutKeys) {
-      const archived   = localStorage.getItem(`bws-history-${key}`);
-      const sessionRaw = localStorage.getItem(`bws-session-${key}`);
+      const archived   = getItem(`bws-history-${key}`);
+      const sessionRaw = getItem(`bws-session-${key}`);
       let sessionLog: ExerciseLog | null = null;
       if (sessionRaw) {
         try { const p = JSON.parse(sessionRaw); sessionLog = p.log !== undefined ? p.log : p; } catch { /* skip */ }
@@ -106,7 +107,7 @@ export default function ProgressTab() {
 
     // Load dated workout log
     try {
-      const logRaw = localStorage.getItem(DATED_LOG_KEY);
+      const logRaw = getItem(DATED_LOG_KEY);
       if (logRaw) {
         const log: WorkoutSession[] = JSON.parse(logRaw);
         setDatedLog(log.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -122,14 +123,14 @@ export default function ProgressTab() {
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     setWeightEntries(updated);
-    localStorage.setItem("bws-weight-log", JSON.stringify(updated));
+    setItem("bws-weight-log", JSON.stringify(updated));
     setNewWeight("");
   };
 
   const removeWeight = (date: string) => {
     const updated = weightEntries.filter(e => e.date !== date);
     setWeightEntries(updated);
-    localStorage.setItem("bws-weight-log", JSON.stringify(updated));
+    setItem("bws-weight-log", JSON.stringify(updated));
   };
 
   // ── Log editing ────────────────────────────────────────────────────────────
@@ -143,13 +144,13 @@ export default function ProgressTab() {
       s.date === session.date && s.key === session.key ? { ...s, log: editBuffer } : s
     );
     setDatedLog(updated);
-    localStorage.setItem(DATED_LOG_KEY, JSON.stringify(updated));
+    setItem(DATED_LOG_KEY, JSON.stringify(updated));
     // Also update bws-history if this is the most recent session for that workout
     const mostRecent = datedLog.filter(s => s.key === session.key).sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     )[0];
     if (mostRecent?.date === session.date) {
-      localStorage.setItem(`bws-history-${session.key}`, JSON.stringify(editBuffer));
+      setItem(`bws-history-${session.key}`, JSON.stringify(editBuffer));
       setHistoryData(prev => ({ ...prev, [session.key]: editBuffer }));
     }
     setEditingLog(null);
@@ -220,7 +221,7 @@ export default function ProgressTab() {
         {sections.map(s => (
           <button key={s.id} onClick={() => setActiveSection(s.id)}
             className={`flex-1 py-2 text-[10px] font-semibold rounded-lg transition-all ${
-              activeSection === s.id ? "bg-yellow-400 text-black" : "text-gray-400 hover:text-gray-300"
+              activeSection === s.id ? "bg-yellow-400 text-on-accent" : "text-gray-400 hover:text-gray-300"
             }`}>
             {s.label}
           </button>
@@ -243,8 +244,8 @@ export default function ProgressTab() {
             />
           </div>
 
-          <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-            <h3 className="font-bold text-white text-sm mb-3">Last 7 Days</h3>
+          <div className="bg-card border border-gray-800 rounded-2xl p-4">
+            <h3 className="font-bold text-gray-200 text-sm mb-3">Last 7 Days</h3>
             <div className="flex justify-between gap-1">
               {last7.map((dateKey) => {
                 const log      = dailyLogs.find(l => l.date === dateKey);
@@ -260,9 +261,9 @@ export default function ProgressTab() {
                       {d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 1)}
                     </div>
                     <div className={`w-full aspect-square rounded-lg flex items-center justify-center text-sm ${
-                      !log && !isToday ? "bg-gray-900 text-gray-700" :
-                      isRest          ? "bg-purple-500/20 text-purple-400" :
-                      hasWork         ? "bg-green-500/20 text-green-400" :
+                      !log && !isToday ? "bg-gray-900 text-gray-600" :
+                      isRest          ? "bg-purple-500/20 text-alt" :
+                      hasWork         ? "bg-green-500/20 text-good" :
                                         "bg-red-500/10 text-gray-600"
                     }`}>
                       {!log && !isToday ? "·" : isRest ? "🛌" : hasWork ? "✓" : "○"}
@@ -277,7 +278,7 @@ export default function ProgressTab() {
             </div>
             <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-600">
               <span>✓ workout</span>
-              <span className="text-blue-400">— water</span>
+              <span className="text-info">— water</span>
               <span>🛌 rest</span>
             </div>
           </div>
@@ -287,30 +288,30 @@ export default function ProgressTab() {
       {/* ── WEIGHT LOG ── */}
       {activeSection === "weight" && (
         <>
-          <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-            <h3 className="font-bold text-white text-sm mb-3">Log Today&apos;s Weight</h3>
+          <div className="bg-card border border-gray-800 rounded-2xl p-4">
+            <h3 className="font-bold text-gray-200 text-sm mb-3">Log Today&apos;s Weight</h3>
             <div className="flex gap-2">
               <div className="flex-1 relative">
                 <input type="number" step="0.1" min="50" max="500" placeholder="e.g. 185.5"
                   value={newWeight} onChange={e => setNewWeight(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && addWeight()}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-3 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50" />
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-3 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-yellow-500/50" />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">{weightUnit}</span>
               </div>
               <button onClick={addWeight}
-                className="bg-yellow-400 text-black font-bold px-4 py-3 rounded-xl text-sm hover:bg-yellow-300">
+                className="bg-yellow-400 text-on-accent font-bold px-4 py-3 rounded-xl text-sm hover:bg-yellow-300">
                 Log
               </button>
             </div>
           </div>
 
           {last7Weights.length > 1 && (
-            <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
+            <div className="bg-card border border-gray-800 rounded-2xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-white text-sm">Weight Trend</h3>
+                <h3 className="font-bold text-gray-200 text-sm">Weight Trend</h3>
                 {weightChange !== null && (
                   <span className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                    weightChange < 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
+                    weightChange < 0 ? "bg-green-500/10 text-good" : "bg-red-500/10 text-bad"
                   }`}>
                     {weightChange <= 0 ? weightChange : `+${weightChange}`} {weightUnit} total
                   </span>
@@ -341,7 +342,7 @@ export default function ProgressTab() {
                           const y = 88 - ((e.weight - minW) / (maxW - minW)) * 80;
                           return (
                             <g key={i}>
-                              <circle cx={x} cy={y} r="4" fill="#0a0a0f" stroke="#f59e0b" strokeWidth="2" />
+                              <circle cx={x} cy={y} r="4" fill="var(--page)" stroke="#f59e0b" strokeWidth="2" />
                               <text x={x} y={y - 8} textAnchor="middle" fill="#9ca3af" fontSize="8">{e.weight}</text>
                             </g>
                           );
@@ -358,9 +359,9 @@ export default function ProgressTab() {
             </div>
           )}
 
-          <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl overflow-hidden">
+          <div className="bg-card border border-gray-800 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-800">
-              <h3 className="font-bold text-white text-sm">Weight History</h3>
+              <h3 className="font-bold text-gray-200 text-sm">Weight History</h3>
             </div>
             {weightEntries.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-600 text-sm">No entries yet. Start logging!</div>
@@ -373,17 +374,17 @@ export default function ProgressTab() {
                   return (
                     <div key={entry.date} className="flex items-center justify-between px-4 py-3">
                       <div>
-                        <p className="text-sm font-semibold text-white">
+                        <p className="text-sm font-semibold text-gray-200">
                           {entry.weight} <span className="text-gray-500 font-normal text-xs">{weightUnit}</span>
                           {delta !== null && (
-                            <span className={`ml-2 text-xs ${delta < 0 ? "text-green-400" : delta > 0 ? "text-red-400" : "text-gray-600"}`}>
+                            <span className={`ml-2 text-xs ${delta < 0 ? "text-good" : delta > 0 ? "text-bad" : "text-gray-600"}`}>
                               {delta < 0 ? delta : delta > 0 ? `+${delta}` : "→"}
                             </span>
                           )}
                         </p>
                         <p className="text-xs text-gray-500">{formatDate(entry.date)}{isToday && " · Today"}</p>
                       </div>
-                      <button onClick={() => removeWeight(entry.date)} className="text-gray-700 hover:text-red-400 text-sm px-2 py-1">✕</button>
+                      <button onClick={() => removeWeight(entry.date)} className="text-gray-600 hover:text-bad text-sm px-2 py-1">✕</button>
                     </div>
                   );
                 })}
@@ -404,7 +405,7 @@ export default function ProgressTab() {
                 <button key={key} onClick={() => setSelectedWorkout(key)}
                   className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
                     selectedWorkout === key
-                      ? "bg-yellow-400 text-black border-yellow-400"
+                      ? "bg-yellow-400 text-on-accent border-yellow-400"
                       : "bg-gray-900 text-gray-400 border-gray-800"
                   }`}>
                   {w.emoji} {key}
@@ -418,8 +419,8 @@ export default function ProgressTab() {
                 <button key={w.key} onClick={() => setSelectedWorkout(w.key)}
                   className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
                     selectedWorkout === w.key
-                      ? "bg-yellow-400 text-black border-yellow-400"
-                      : "bg-purple-900/40 text-purple-300 border-purple-700/50"
+                      ? "bg-yellow-400 text-on-accent border-yellow-400"
+                      : "bg-purple-900/40 text-alt border-purple-700/50"
                   }`}>
                   {w.emoji} {w.name.split(" ")[0]}
                   {hasData && selectedWorkout !== w.key && <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />}
@@ -429,9 +430,9 @@ export default function ProgressTab() {
           </div>
 
           {!hasAnyHistory ? (
-            <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-6 text-center">
+            <div className="bg-card border border-gray-800 rounded-2xl p-6 text-center">
               <p className="text-3xl mb-2">🏋️</p>
-              <p className="text-white font-semibold text-sm">No workout data yet</p>
+              <p className="text-gray-200 font-semibold text-sm">No workout data yet</p>
               <p className="text-gray-500 text-xs mt-1">Complete a workout and log your weights — they&apos;ll show up here.</p>
             </div>
           ) : (
@@ -448,17 +449,17 @@ export default function ProgressTab() {
                 const best     = getBestSet(sets);
                 const doneSets = sets.filter(s => s.done && s.weight);
                 return (
-                  <div key={ex.name} className={`bg-[#0f0f1a] border rounded-2xl p-4 transition-all ${
+                  <div key={ex.name} className={`bg-card border rounded-2xl p-4 transition-all ${
                     doneSets.length === 0 ? "border-gray-800 opacity-50" : "border-gray-700"
                   }`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{ex.name}</p>
+                        <p className="text-sm font-semibold text-gray-200 truncate">{ex.name}</p>
                         <p className="text-[11px] text-gray-500">{ex.sets} sets · {ex.reps} reps</p>
                       </div>
                       {best ? (
                         <div className="text-right flex-shrink-0">
-                          <p className="text-lg font-black text-yellow-400">{best.weight}<span className="text-xs text-gray-500 font-normal"> {weightUnit}</span></p>
+                          <p className="text-lg font-black text-accent">{best.weight}<span className="text-xs text-gray-500 font-normal"> {weightUnit}</span></p>
                           <p className="text-[11px] text-gray-500">{best.reps} reps</p>
                         </div>
                       ) : <p className="text-xs text-gray-600 flex-shrink-0">—</p>}
@@ -468,7 +469,7 @@ export default function ProgressTab() {
                         {sets.map((s, i) => s.done && s.weight ? (
                           <div key={i} className={`px-2 py-1 rounded-lg text-[11px] font-semibold ${
                             s === best
-                              ? "bg-yellow-400/20 text-yellow-400 border border-yellow-500/30"
+                              ? "bg-yellow-400/20 text-accent border border-yellow-500/30"
                               : "bg-gray-800 text-gray-400"
                           }`}>
                             {s.weight}×{s.reps}{s === best && <span className="ml-1 text-[9px]">★</span>}
@@ -488,9 +489,9 @@ export default function ProgressTab() {
       {activeSection === "log" && (
         <>
           {datedLog.length === 0 ? (
-            <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-8 text-center">
+            <div className="bg-card border border-gray-800 rounded-2xl p-8 text-center">
               <p className="text-3xl mb-2">📋</p>
-              <p className="text-white font-semibold text-sm">No workout log yet</p>
+              <p className="text-gray-200 font-semibold text-sm">No workout log yet</p>
               <p className="text-gray-500 text-xs mt-1">Log weights during your next workout — each session will appear here.</p>
             </div>
           ) : (
@@ -505,7 +506,7 @@ export default function ProgressTab() {
                 );
 
                 return (
-                  <div key={id} className="bg-[#0f0f1a] border border-gray-800 rounded-2xl overflow-hidden">
+                  <div key={id} className="bg-card border border-gray-800 rounded-2xl overflow-hidden">
                     {/* Session header — tap to expand */}
                     <button
                       onClick={() => {
@@ -516,7 +517,7 @@ export default function ProgressTab() {
                     >
                       <span className="text-2xl">{session.emoji}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white">{session.name}</p>
+                        <p className="text-sm font-bold text-gray-200">{session.name}</p>
                         <p className="text-xs text-gray-500">{friendlyDate(session.date)}</p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -545,7 +546,7 @@ export default function ProgressTab() {
                                           type="number" inputMode="decimal"
                                           value={editBuffer[exName]?.[i]?.weight ?? s.weight}
                                           onChange={e => updateEditSet(exName, i, "weight", e.target.value)}
-                                          className="w-14 bg-transparent text-yellow-400 text-xs font-bold text-center outline-none border-b border-yellow-500/30"
+                                          className="w-14 bg-transparent text-accent text-xs font-bold text-center outline-none border-b border-yellow-500/30"
                                         />
                                         <span className="text-gray-600 text-xs">{weightUnit}×</span>
                                         <input
@@ -560,7 +561,7 @@ export default function ProgressTab() {
                                   return (
                                     <div key={i} className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold ${
                                       s === best
-                                        ? "bg-yellow-400/20 text-yellow-400 border border-yellow-500/30"
+                                        ? "bg-yellow-400/20 text-accent border border-yellow-500/30"
                                         : "bg-gray-800 text-gray-400"
                                     }`}>
                                       {s.weight}{weightUnit}×{s.reps}
@@ -577,7 +578,7 @@ export default function ProgressTab() {
                         {!isEditing ? (
                           <button
                             onClick={() => startEdit(session)}
-                            className="mt-1 text-xs text-gray-500 hover:text-yellow-400 border border-gray-700 hover:border-yellow-500/40 px-3 py-1.5 rounded-lg transition-all"
+                            className="mt-1 text-xs text-gray-500 hover:text-accent border border-gray-700 hover:border-yellow-500/40 px-3 py-1.5 rounded-lg transition-all"
                           >
                             ✏️ Edit weights
                           </button>
@@ -585,7 +586,7 @@ export default function ProgressTab() {
                           <div className="flex gap-2 mt-1">
                             <button
                               onClick={() => saveEdit(session)}
-                              className="flex-1 py-2 rounded-xl bg-yellow-400 text-black text-xs font-bold hover:bg-yellow-300"
+                              className="flex-1 py-2 rounded-xl bg-yellow-400 text-on-accent text-xs font-bold hover:bg-yellow-300"
                             >
                               Save changes
                             </button>
@@ -612,12 +613,12 @@ export default function ProgressTab() {
         <>
           <div className="bg-gradient-to-br from-orange-500/10 to-yellow-500/5 border border-orange-500/20 rounded-2xl p-5 text-center">
             <p className="text-5xl mb-2">🔥</p>
-            <p className="text-4xl font-black text-white">{workoutStreak}</p>
+            <p className="text-4xl font-black text-gray-200">{workoutStreak}</p>
             <p className="text-sm text-gray-400 mt-1">Day Streak</p>
           </div>
 
-          <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-            <h3 className="font-bold text-white text-sm mb-3">Achievements</h3>
+          <div className="bg-card border border-gray-800 rounded-2xl p-4">
+            <h3 className="font-bold text-gray-200 text-sm mb-3">Achievements</h3>
             <div className="space-y-3">
               <Achievement emoji="🌱" title="First Workout" desc="Log your first workout"       unlocked={dailyLogs.some(l => l.workoutDone)} />
               <Achievement emoji="🔥" title="3-Day Streak"  desc="Work out 3 days in a row"    unlocked={workoutStreak >= 3} />
@@ -630,8 +631,8 @@ export default function ProgressTab() {
             </div>
           </div>
 
-          <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-            <h3 className="font-bold text-white text-sm mb-3">This Week</h3>
+          <div className="bg-card border border-gray-800 rounded-2xl p-4">
+            <h3 className="font-bold text-gray-200 text-sm mb-3">This Week</h3>
             <div className="space-y-2">
               <ProgressRow
                 label="Workouts Completed"
@@ -657,10 +658,10 @@ export default function ProgressTab() {
 
 function StatBox({ label, value, unit, emoji, color }: { label: string; value: string; unit: string; emoji: string; color: string }) {
   const colorMap: Record<string, string> = {
-    orange: "text-orange-400 border-orange-500/20 bg-orange-400/5",
-    yellow: "text-yellow-400 border-yellow-500/20 bg-yellow-400/5",
-    blue:   "text-blue-400 border-blue-500/20 bg-blue-400/5",
-    green:  "text-green-400 border-green-500/20 bg-green-400/5",
+    orange: "text-warn border-orange-500/20 bg-orange-400/5",
+    yellow: "text-accent border-yellow-500/20 bg-yellow-400/5",
+    blue:   "text-info border-blue-500/20 bg-blue-400/5",
+    green:  "text-good border-green-500/20 bg-green-400/5",
     gray:   "text-gray-400 border-gray-700 bg-gray-800/30",
   };
   return (
@@ -680,10 +681,10 @@ function Achievement({ emoji, title, desc, unlocked }: { emoji: string; title: s
     <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${unlocked ? "bg-yellow-400/5 border-yellow-500/20" : "opacity-40 border-gray-800"}`}>
       <span className={`text-2xl ${!unlocked && "grayscale"}`}>{emoji}</span>
       <div>
-        <p className={`text-sm font-semibold ${unlocked ? "text-white" : "text-gray-500"}`}>{title}</p>
+        <p className={`text-sm font-semibold ${unlocked ? "text-gray-200" : "text-gray-500"}`}>{title}</p>
         <p className="text-xs text-gray-600">{desc}</p>
       </div>
-      {unlocked && <span className="ml-auto text-yellow-400 text-sm">✓</span>}
+      {unlocked && <span className="ml-auto text-accent text-sm">✓</span>}
     </div>
   );
 }
@@ -695,7 +696,7 @@ function ProgressRow({ label, value, max, color }: { label: string; value: numbe
     <div>
       <div className="flex justify-between text-xs mb-1">
         <span className="text-gray-400">{label}</span>
-        <span className="text-white font-semibold">{value}/{max}</span>
+        <span className="text-gray-200 font-semibold">{value}/{max}</span>
       </div>
       <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${colorMap[color]} transition-all`} style={{ width: `${pct}%` }} />

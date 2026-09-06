@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { workouts, workoutRotation, type Exercise } from "../data/workouts";
+import {
+  workouts, workoutRotation, allWorkouts, allWorkoutKeys, MODALITY, KB_KEYS,
+  type Exercise,
+} from "../data/workouts";
+import { getItem, setItem, removeItem } from "../lib/store";
 
 // ── Confetti ───────────────────────────────────────────────────────────────
 function Confetti({ onDone }: { onDone: () => void }) {
@@ -55,6 +59,7 @@ type CustomWorkout = { key: string; name: string; emoji: string; exercises: Exer
 const ROTATION_KEY    = "bws-rotation-index";
 const MY_WORKOUTS_KEY = "bws-my-workouts";
 const DATED_LOG_KEY   = "bws-dated-log";
+const LAST_KEY        = "bws-last-workout";
 
 type WorkoutSession = { date: string; key: string; name: string; emoji: string; log: ExerciseLog };
 
@@ -75,12 +80,12 @@ const AB_EXERCISES: Exercise[] = [
 ];
 
 const WORKOUT_COLORS: Record<string, string> = {
-  blue:   "text-blue-400 bg-blue-400/10 border-blue-500/30",
-  green:  "text-green-400 bg-green-400/10 border-green-500/30",
-  orange: "text-orange-400 bg-orange-400/10 border-orange-500/30",
-  purple: "text-purple-400 bg-purple-400/10 border-purple-500/30",
-  red:    "text-red-400 bg-red-400/10 border-red-500/30",
-  yellow: "text-yellow-400 bg-yellow-400/10 border-yellow-500/30",
+  blue:   "text-info bg-blue-400/10 border-blue-500/30",
+  green:  "text-good bg-green-400/10 border-green-500/30",
+  orange: "text-warn bg-orange-400/10 border-orange-500/30",
+  purple: "text-alt bg-purple-400/10 border-purple-500/30",
+  red:    "text-bad bg-red-400/10 border-red-500/30",
+  yellow: "text-accent bg-yellow-400/10 border-yellow-500/30",
 };
 
 // ── localStorage helpers ───────────────────────────────────────────────────
@@ -90,11 +95,11 @@ const customKey   = (k: string) => `bws-custom-${k}`;
 
 function getRotationIndex() {
   if (typeof window === "undefined") return 0;
-  return parseInt(localStorage.getItem(ROTATION_KEY) || "0", 10) % workoutRotation.length;
+  return parseInt(getItem(ROTATION_KEY) || "0", 10) % workoutRotation.length;
 }
 function loadSession(k: string): ExerciseLog {
   try {
-    const raw = localStorage.getItem(sessionKey(k));
+    const raw = getItem(sessionKey(k));
     if (!raw) return {};
     const p = JSON.parse(raw);
     // New format: { date, log } — reset if it's from a previous day
@@ -105,16 +110,16 @@ function loadSession(k: string): ExerciseLog {
   } catch { return {}; }
 }
 function saveSession(k: string, log: ExerciseLog, meta?: { name: string; emoji: string }) {
-  localStorage.setItem(sessionKey(k), JSON.stringify({ date: new Date().toDateString(), log }));
+  setItem(sessionKey(k), JSON.stringify({ date: new Date().toDateString(), log }));
   const hasWeight = Object.values(log).some(sets => sets.some(s => s.weight.trim() !== ""));
   if (hasWeight) {
-    localStorage.setItem(historyKey(k), JSON.stringify(log));
+    setItem(historyKey(k), JSON.stringify(log));
     if (meta) {
       try {
-        const all: WorkoutSession[] = JSON.parse(localStorage.getItem(DATED_LOG_KEY) || "[]");
+        const all: WorkoutSession[] = JSON.parse(getItem(DATED_LOG_KEY) || "[]");
         const today = new Date().toDateString();
         const without = all.filter(s => !(s.date === today && s.key === k));
-        localStorage.setItem(DATED_LOG_KEY, JSON.stringify([
+        setItem(DATED_LOG_KEY, JSON.stringify([
           ...without,
           { date: today, key: k, name: meta.name, emoji: meta.emoji, log },
         ]));
@@ -123,23 +128,23 @@ function saveSession(k: string, log: ExerciseLog, meta?: { name: string; emoji: 
   }
 }
 function loadHistory(k: string): ExerciseLog {
-  try { return JSON.parse(localStorage.getItem(historyKey(k)) || "{}"); } catch { return {}; }
+  try { return JSON.parse(getItem(historyKey(k)) || "{}"); } catch { return {}; }
 }
 function archiveSession(k: string, log: ExerciseLog) {
   const hasData = Object.values(log).some(sets => sets.some(s => s.weight.trim() !== ""));
-  if (hasData) localStorage.setItem(historyKey(k), JSON.stringify(log));
+  if (hasData) setItem(historyKey(k), JSON.stringify(log));
 }
 function loadCustomExercises(k: string): Exercise[] | null {
-  try { const r = localStorage.getItem(customKey(k)); return r ? JSON.parse(r) : null; } catch { return null; }
+  try { const r = getItem(customKey(k)); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 function saveCustomExercises(k: string, exs: Exercise[]) {
-  localStorage.setItem(customKey(k), JSON.stringify(exs));
+  setItem(customKey(k), JSON.stringify(exs));
 }
 function loadMyWorkouts(): CustomWorkout[] {
-  try { return JSON.parse(localStorage.getItem(MY_WORKOUTS_KEY) || "[]"); } catch { return []; }
+  try { return JSON.parse(getItem(MY_WORKOUTS_KEY) || "[]"); } catch { return []; }
 }
 function saveMyWorkouts(ws: CustomWorkout[]) {
-  localStorage.setItem(MY_WORKOUTS_KEY, JSON.stringify(ws));
+  setItem(MY_WORKOUTS_KEY, JSON.stringify(ws));
 }
 function initSets(ex: Exercise, saved: SetData[] | undefined): SetData[] {
   const count = parseInt(ex.sets) || 3;
@@ -178,17 +183,32 @@ export default function WorkoutTab() {
   const [newWorkoutEx, setNewWorkoutEx]       = useState({ name: "", sets: "3", reps: "8–12", rest: "90 sec" });
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * Remember the chosen workout. This deliberately lives in the click handler
+   * rather than an effect on `selectedKey`: React StrictMode double-invokes
+   * mount effects, so an effect-based write races the restore effect and pins
+   * the selection to whatever the initial state happened to be.
+   */
+  const chooseWorkout = (key: string) => {
+    setSelectedKey(key);
+    if (key) setItem(LAST_KEY, key);
+  };
 
   useEffect(() => {
     const idx = getRotationIndex();
     setRotationIdx(idx);
-    setSelectedKey(workoutRotation[idx]);
 
-    const savedUnit = localStorage.getItem("bws-weight-unit") as "kg" | "lbs" | null;
+    // Resume whatever was open last. Falling back to the kettlebell re-entry
+    // session rather than a barbell day is deliberate: kettlebell is the
+    // primary modality, and after a layoff the ramp is where to restart.
+    const lastKey = getItem(LAST_KEY);
+    setSelectedKey(lastKey && allWorkouts[lastKey] ? lastKey : "KBRamp");
+
+    const savedUnit = getItem("bws-weight-unit") as "kg" | "lbs" | null;
     if (savedUnit) setWeightUnit(savedUnit);
 
     const allCustom: Record<string, Exercise[]> = {};
-    for (const k of workoutRotation) {
+    for (const k of allWorkoutKeys) {
       const c = loadCustomExercises(k);
       if (c) allCustom[k] = c;
     }
@@ -223,7 +243,7 @@ export default function WorkoutTab() {
   }, [timerRunning, timer]);
 
   // Look up the current workout from either built-ins or custom
-  const builtInWorkout = workouts[selectedKey];
+  const builtInWorkout = allWorkouts[selectedKey];
   const myWorkout = myWorkouts.find(w => w.key === selectedKey);
   const workout = builtInWorkout ?? (myWorkout ? { ...myWorkout, color: "yellow" } : null);
   const isMyWorkout = !!myWorkout;
@@ -295,7 +315,7 @@ export default function WorkoutTab() {
     const next = { ...customExercises };
     delete next[selectedKey];
     setCustomExercises(next);
-    localStorage.removeItem(customKey(selectedKey));
+    removeItem(customKey(selectedKey));
     setEditMode(false);
   }
 
@@ -359,7 +379,30 @@ export default function WorkoutTab() {
 
       {/* ── WORKOUT PICKER ── */}
       <div>
-        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Pick a workout</p>
+        {/* Kettlebell first — it is the primary modality, and the modality the
+            Apr–Jul body-composition results actually came from. */}
+        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Kettlebell</p>
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+          {KB_KEYS.map(key => {
+            const w = allWorkouts[key];
+            const isSelected = key === selectedKey;
+            const isCust = !!customExercises[key];
+            const short = key === "KBRamp" ? "Re-entry" : key === "KBStrength" ? "Strength" : "Complex";
+            return (
+              <button key={key} onClick={() => chooseWorkout(key)}
+                className={`flex-shrink-0 flex flex-col items-center px-3 py-2.5 rounded-xl border transition-all min-w-[78px] ${
+                  isSelected ? "bg-yellow-400 text-on-accent border-yellow-400 font-bold"
+                  : "bg-gray-900/50 text-gray-400 border-gray-800 hover:border-gray-600"
+                }`}>
+                <span className="text-lg">{w.emoji}</span>
+                <span className="text-[10px] font-semibold mt-0.5 text-center leading-tight">{short}</span>
+                {isCust && !isSelected && <span className="text-[8px] text-accent mt-0.5">custom</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Barbell · Built With Science</p>
         <div className="flex gap-2 overflow-x-auto pb-2">
           {/* Built-in workouts */}
           {workoutRotation.map((key, idx) => {
@@ -368,26 +411,26 @@ export default function WorkoutTab() {
             const isSelected = key === selectedKey;
             const isCust = !!customExercises[key];
             return (
-              <button key={key} onClick={() => setSelectedKey(key)}
+              <button key={key} onClick={() => chooseWorkout(key)}
                 className={`flex-shrink-0 flex flex-col items-center px-3 py-2.5 rounded-xl border transition-all min-w-[64px] ${
-                  isSelected ? "bg-yellow-400 text-black border-yellow-400 font-bold"
-                  : isNext ? "bg-yellow-400/10 text-yellow-300 border-yellow-500/40"
+                  isSelected ? "bg-yellow-400 text-on-accent border-yellow-400 font-bold"
+                  : isNext ? "bg-yellow-400/10 text-accent border-yellow-500/40"
                   : "bg-gray-900/50 text-gray-400 border-gray-800 hover:border-gray-600"
                 }`}>
                 <span className="text-lg">{w.emoji}</span>
                 <span className="text-[10px] font-semibold mt-0.5 uppercase tracking-tight">{key}</span>
-                {isCust && !isSelected && <span className="text-[8px] text-yellow-500 mt-0.5">custom</span>}
-                {isNext && !isSelected && !isCust && <span className="text-[9px] text-yellow-400 mt-0.5">next</span>}
+                {isCust && !isSelected && <span className="text-[8px] text-accent mt-0.5">custom</span>}
+                {isNext && !isSelected && !isCust && <span className="text-[9px] text-accent mt-0.5">next</span>}
               </button>
             );
           })}
 
           {/* My custom workouts */}
           {myWorkouts.map(w => (
-            <button key={w.key} onClick={() => setSelectedKey(w.key)}
+            <button key={w.key} onClick={() => chooseWorkout(w.key)}
               className={`flex-shrink-0 flex flex-col items-center px-3 py-2.5 rounded-xl border transition-all min-w-[64px] ${
-                selectedKey === w.key ? "bg-yellow-400 text-black border-yellow-400 font-bold"
-                : "bg-purple-900/30 text-purple-300 border-purple-700/50 hover:border-purple-500"
+                selectedKey === w.key ? "bg-yellow-400 text-on-accent border-yellow-400 font-bold"
+                : "bg-purple-900/30 text-alt border-purple-700/50 hover:border-purple-500"
               }`}>
               <span className="text-lg">{w.emoji}</span>
               <span className="text-[10px] font-semibold mt-0.5 text-center leading-tight">{w.name.split(" ")[0]}</span>
@@ -397,7 +440,7 @@ export default function WorkoutTab() {
           {/* Create new */}
           <button
             onClick={() => { setShowCreateForm(!showCreateForm); setSelectedKey(""); }}
-            className="flex-shrink-0 flex flex-col items-center px-3 py-2.5 rounded-xl border border-dashed border-gray-600 text-gray-500 hover:border-yellow-500/50 hover:text-yellow-400 transition-all min-w-[64px]">
+            className="flex-shrink-0 flex flex-col items-center px-3 py-2.5 rounded-xl border border-dashed border-gray-600 text-gray-500 hover:border-yellow-500/50 hover:text-accent transition-all min-w-[64px]">
             <span className="text-lg">＋</span>
             <span className="text-[10px] font-semibold mt-0.5">New</span>
           </button>
@@ -406,9 +449,9 @@ export default function WorkoutTab() {
 
       {/* ── CREATE WORKOUT FORM ── */}
       {showCreateForm && (
-        <div className="bg-[#0f0f1a] border border-yellow-500/20 rounded-2xl p-4 space-y-4">
+        <div className="bg-card border border-yellow-500/20 rounded-2xl p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-yellow-400">Create Workout</p>
+            <p className="text-sm font-bold text-accent">Create Workout</p>
             <button onClick={() => setShowCreateForm(false)} className="text-gray-500 hover:text-gray-300 text-sm">✕</button>
           </div>
 
@@ -418,7 +461,7 @@ export default function WorkoutTab() {
             placeholder="Workout name (e.g. Kettlebell Complex)"
             value={newWorkout.name}
             onChange={e => setNewWorkout(p => ({ ...p, name: e.target.value }))}
-            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50"
+            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-yellow-500/50"
           />
 
           {/* Emoji picker */}
@@ -443,10 +486,10 @@ export default function WorkoutTab() {
               {newWorkout.exercises.map((ex, i) => (
                 <div key={i} className="flex items-center gap-2 bg-gray-900/60 rounded-xl px-3 py-2 border border-gray-800">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white font-medium truncate">{ex.name}</p>
+                    <p className="text-sm text-gray-200 font-medium truncate">{ex.name}</p>
                     <p className="text-xs text-gray-500">{ex.sets} sets × {ex.reps}</p>
                   </div>
-                  <button onClick={() => removeExFromNewWorkout(i)} className="text-gray-600 hover:text-red-400 text-sm px-1">✕</button>
+                  <button onClick={() => removeExFromNewWorkout(i)} className="text-gray-600 hover:text-bad text-sm px-1">✕</button>
                 </div>
               ))}
             </div>
@@ -461,7 +504,7 @@ export default function WorkoutTab() {
               value={newWorkoutEx.name}
               onChange={e => setNewWorkoutEx(p => ({ ...p, name: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && addExToNewWorkout()}
-              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50"
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-yellow-500/50"
             />
             <div className="grid grid-cols-3 gap-2">
               {(["sets","reps","rest"] as const).map(field => (
@@ -471,7 +514,7 @@ export default function WorkoutTab() {
                     type="text"
                     value={newWorkoutEx[field]}
                     onChange={e => setNewWorkoutEx(p => ({ ...p, [field]: e.target.value }))}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2 py-2 text-sm text-white text-center outline-none focus:border-yellow-500/50"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2 py-2 text-sm text-gray-200 text-center outline-none focus:border-yellow-500/50"
                   />
                 </div>
               ))}
@@ -485,7 +528,7 @@ export default function WorkoutTab() {
           <button
             onClick={saveNewWorkout}
             disabled={!newWorkout.name.trim() || newWorkout.exercises.length === 0}
-            className="w-full py-3 rounded-xl bg-yellow-400 text-black font-bold text-sm hover:bg-yellow-300 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-full py-3 rounded-xl bg-yellow-400 text-on-accent font-bold text-sm hover:bg-yellow-300 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Save Workout
           </button>
@@ -498,17 +541,17 @@ export default function WorkoutTab() {
         <div className={`rounded-2xl p-4 border transition-all ${warmupDone ? "bg-green-500/5 border-green-500/30" : "bg-orange-500/5 border-orange-500/30"}`}>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-orange-400">Step 1 — Warm-Up</p>
-              <p className="text-sm font-semibold text-white mt-0.5">10 minutes · get the blood moving</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-warn">Step 1 — Warm-Up</p>
+              <p className="text-sm font-semibold text-gray-200 mt-0.5">10 minutes · get the blood moving</p>
             </div>
-            {warmupDone && <span className="text-green-400 text-lg font-bold">✓</span>}
+            {warmupDone && <span className="text-good text-lg font-bold">✓</span>}
           </div>
           {!warmupDone && (<>
             <div className="grid grid-cols-4 gap-2 mb-3">
               {WARMUP_OPTIONS.map(opt => (
                 <button key={opt.id} onClick={() => setWarmupChoice(opt.id)}
                   className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border text-xs font-semibold transition-all ${
-                    warmupChoice === opt.id ? "bg-orange-400/20 text-orange-300 border-orange-400/50" : "bg-gray-900 text-gray-400 border-gray-800"
+                    warmupChoice === opt.id ? "bg-orange-400/20 text-warn border-orange-400/50" : "bg-gray-900 text-gray-400 border-gray-800"
                   }`}>
                   <span className="text-base font-mono">{opt.icon}</span>
                   <span className="text-center leading-tight text-[10px]">{opt.label}</span>
@@ -517,17 +560,17 @@ export default function WorkoutTab() {
             </div>
             <div className="flex gap-2">
               <button onClick={() => startTimer(10 * 60, "Warm-Up")}
-                className="flex-1 py-2 rounded-xl bg-orange-400/20 text-orange-300 text-sm font-semibold hover:bg-orange-400/30">
+                className="flex-1 py-2 rounded-xl bg-orange-400/20 text-warn text-sm font-semibold hover:bg-orange-400/30">
                 Start 10-min timer
               </button>
               <button onClick={() => setWarmupDone(true)}
-                className="py-2 px-4 rounded-xl bg-green-500/20 text-green-400 text-sm font-semibold hover:bg-green-500/30">
+                className="py-2 px-4 rounded-xl bg-green-500/20 text-good text-sm font-semibold hover:bg-green-500/30">
                 Done
               </button>
             </div>
           </>)}
           {warmupDone && (
-            <p className="text-xs text-green-400">
+            <p className="text-xs text-good">
               {warmupChoice ? `${WARMUP_OPTIONS.find(o => o.id === warmupChoice)?.label} — ` : ""}Warmed up and ready
             </p>
           )}
@@ -536,9 +579,9 @@ export default function WorkoutTab() {
         {/* ── TIMER ── */}
         {timer !== null && (
           <div className={`rounded-2xl p-4 border text-center transition-all ${
-            timer === 0 ? "bg-green-500/10 border-green-500/30 text-green-400"
-            : timerLabel === "Warm-Up" || timerLabel === "Cool-Down" ? "bg-orange-500/10 border-orange-500/30 text-orange-300"
-            : "bg-blue-500/10 border-blue-500/30 text-blue-400"
+            timer === 0 ? "bg-green-500/10 border-green-500/30 text-good"
+            : timerLabel === "Warm-Up" || timerLabel === "Cool-Down" ? "bg-orange-500/10 border-orange-500/30 text-warn"
+            : "bg-blue-500/10 border-blue-500/30 text-info"
           }`}>
             {timer === 0 ? (
               <div>
@@ -572,17 +615,17 @@ export default function WorkoutTab() {
               <button onClick={() => {
                 const next = weightUnit === "kg" ? "lbs" : "kg";
                 setWeightUnit(next);
-                localStorage.setItem("bws-weight-unit", next);
+                setItem("bws-weight-unit", next);
               }} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-gray-800 border-gray-700 hover:border-gray-500">
-                <span className={weightUnit === "kg" ? "text-yellow-400" : "text-gray-500"}>kg</span>
+                <span className={weightUnit === "kg" ? "text-accent" : "text-gray-500"}>kg</span>
                 <span className="text-gray-600 mx-0.5">/</span>
-                <span className={weightUnit === "lbs" ? "text-yellow-400" : "text-gray-500"}>lbs</span>
+                <span className={weightUnit === "lbs" ? "text-accent" : "text-gray-500"}>lbs</span>
               </button>
               {/* Edit (only for built-in workouts) */}
               {!isMyWorkout && (
                 <button onClick={() => { setEditMode(!editMode); setShowAddForm(false); }}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    editMode ? "bg-yellow-400 text-black border-yellow-400" : "bg-gray-800 text-gray-400 border-gray-700"
+                    editMode ? "bg-yellow-400 text-on-accent border-yellow-400" : "bg-gray-800 text-gray-400 border-gray-700"
                   }`}>
                   {editMode ? "Done" : "✏️"}
                 </button>
@@ -590,7 +633,7 @@ export default function WorkoutTab() {
               {/* Delete (only for my workouts) */}
               {isMyWorkout && (
                 <button onClick={() => deleteMyWorkout(selectedKey)}
-                  className="px-2.5 py-1.5 rounded-lg text-xs border bg-red-900/20 text-red-400 border-red-800/40 hover:bg-red-900/40">
+                  className="px-2.5 py-1.5 rounded-lg text-xs border bg-red-900/20 text-bad border-red-800/40 hover:bg-red-900/40">
                   🗑
                 </button>
               )}
@@ -627,43 +670,43 @@ export default function WorkoutTab() {
             }, null);
 
             return (
-              <div key={`${ex.name}-${exIdx}`} className={`bg-[#0f0f1a] border rounded-2xl overflow-hidden transition-all ${
+              <div key={`${ex.name}-${exIdx}`} className={`bg-card border rounded-2xl overflow-hidden transition-all ${
                 editMode ? "border-yellow-500/20" : isComplete ? "border-green-500/30" : "border-gray-800"
               }`}>
                 {editMode ? (
                   <div className="flex items-center gap-3 p-4">
                     <div className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 flex items-center justify-center text-xs font-bold">{exIdx + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{ex.name}</p>
+                      <p className="text-sm font-semibold text-gray-200 truncate">{ex.name}</p>
                       <p className="text-xs text-gray-500">{ex.sets} × {ex.reps}</p>
                     </div>
                     <button onClick={() => removeExercise(ex.name)}
-                      className="w-8 h-8 rounded-lg bg-red-500/20 text-red-400 flex items-center justify-center text-sm hover:bg-red-500/40">✕</button>
+                      className="w-8 h-8 rounded-lg bg-red-500/20 text-bad flex items-center justify-center text-sm hover:bg-red-500/40">✕</button>
                   </div>
                 ) : (
                   <>
                     <button onClick={() => setExpandedExercise(isExpanded ? null : ex.name)}
                       className="w-full flex items-center gap-3 p-4 text-left">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                        isComplete ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"
+                        isComplete ? "bg-green-500 text-gray-200" : "bg-gray-800 text-gray-400"
                       }`}>{isComplete ? "✓" : exIdx + 1}</div>
                       <div className="flex-1 min-w-0">
-                        <p className={`font-semibold text-sm ${isComplete ? "text-gray-500 line-through" : "text-white"}`}>{ex.name}</p>
+                        <p className={`font-semibold text-sm ${isComplete ? "text-gray-500 line-through" : "text-gray-200"}`}>{ex.name}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           {ex.sets} sets × {ex.reps}
-                          {ex.rest && <span className="ml-2 text-blue-400/70">· {ex.rest} rest</span>}
+                          {ex.rest && <span className="ml-2 text-info/70">· {ex.rest} rest</span>}
                         </p>
-                        {lastBest && <p className="text-[11px] text-yellow-400/60 mt-0.5">Last: {lastBest.weight} {weightUnit} × {lastBest.reps || "?"} reps</p>}
+                        {lastBest && <p className="text-[11px] text-accent/60 mt-0.5">Last: {lastBest.weight} {weightUnit} × {lastBest.reps || "?"} reps</p>}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-semibold ${isComplete ? "text-green-400" : "text-gray-500"}`}>{done}/{sets.length}</span>
+                        <span className={`text-xs font-semibold ${isComplete ? "text-good" : "text-gray-500"}`}>{done}/{sets.length}</span>
                         <span className="text-gray-600 text-sm">{isExpanded ? "▲" : "▼"}</span>
                       </div>
                     </button>
 
                     {isExpanded && (
                       <div className="px-4 pb-4 space-y-3 border-t border-gray-800/50 pt-3">
-                        {ex.notes && <p className="text-xs text-yellow-400/80 bg-yellow-400/5 rounded-lg px-3 py-2">{ex.notes}</p>}
+                        {ex.notes && <p className="text-xs text-accent/80 bg-yellow-400/5 rounded-lg px-3 py-2">{ex.notes}</p>}
                         <div className="grid grid-cols-[32px_1fr_76px_76px_36px] gap-2 px-1">
                           <div /><p className="text-[10px] text-gray-600 uppercase">Set</p>
                           <p className="text-[10px] text-gray-600 uppercase text-center">{weightUnit}</p>
@@ -678,22 +721,22 @@ export default function WorkoutTab() {
                                 setData.done ? "bg-green-500/5 border border-green-500/20" : "bg-gray-900/50 border border-gray-800"
                               }`}>
                                 <span className={`w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold ${
-                                  setData.done ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"
+                                  setData.done ? "bg-green-500 text-gray-200" : "bg-gray-800 text-gray-400"
                                 }`}>{setIdx + 1}</span>
                                 <span className={`text-sm font-medium ${setData.done ? "text-gray-500" : "text-gray-200"}`}>Set {setIdx + 1}</span>
                                 <input type="number" inputMode="decimal"
                                   placeholder={prev?.weight || "—"} value={setData.weight}
                                   onChange={e => updateSet(ex, setIdx, { weight: e.target.value })}
                                   onClick={e => e.stopPropagation()}
-                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
+                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
                                 <input type="number" inputMode="numeric"
                                   placeholder={prev?.reps || ex.reps.split(/[-–]/)[0]} value={setData.reps}
                                   onChange={e => updateSet(ex, setIdx, { reps: e.target.value })}
                                   onClick={e => e.stopPropagation()}
-                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
+                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
                                 <button onClick={() => toggleDone(ex, setIdx)}
                                   className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all ${
-                                    setData.done ? "bg-green-500 text-white" : "bg-gray-700 text-gray-500 hover:bg-gray-600"
+                                    setData.done ? "bg-green-500 text-gray-200" : "bg-gray-700 text-gray-500 hover:bg-gray-600"
                                   }`}>{setData.done ? "✓" : "·"}</button>
                               </div>
                               {prev?.weight && (
@@ -706,7 +749,7 @@ export default function WorkoutTab() {
                           <div className="flex items-center justify-between pt-1">
                             <p className="text-xs text-gray-500">Rest: {ex.rest}</p>
                             <button onClick={() => startTimer(parseRestTime(ex.rest!), "Rest")}
-                              className="text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-3 py-1 rounded-lg">
+                              className="text-xs text-info hover:text-info bg-blue-400/10 px-3 py-1 rounded-lg">
                               Start rest timer
                             </button>
                           </div>
@@ -721,30 +764,30 @@ export default function WorkoutTab() {
 
           {/* Add exercise (edit mode, built-in workouts only) */}
           {editMode && !isMyWorkout && (
-            <div className="bg-[#0f0f1a] border border-dashed border-yellow-500/30 rounded-2xl p-4 space-y-3">
+            <div className="bg-card border border-dashed border-yellow-500/30 rounded-2xl p-4 space-y-3">
               {!showAddForm ? (
                 <button onClick={() => setShowAddForm(true)}
-                  className="w-full py-3 text-sm text-yellow-400 font-semibold flex items-center justify-center gap-2 hover:text-yellow-300">
+                  className="w-full py-3 text-sm text-accent font-semibold flex items-center justify-center gap-2 hover:text-accent">
                   <span className="text-lg">＋</span> Add Exercise
                 </button>
               ) : (
                 <>
-                  <p className="text-xs text-yellow-400 font-semibold uppercase">New Exercise</p>
+                  <p className="text-xs text-accent font-semibold uppercase">New Exercise</p>
                   <input type="text" placeholder="Exercise name"
                     value={newEx.name} onChange={e => setNewEx(p => ({ ...p, name: e.target.value }))}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50" />
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-yellow-500/50" />
                   <div className="grid grid-cols-3 gap-2">
                     {(["sets","reps","rest"] as const).map(f => (
                       <div key={f}>
                         <p className="text-[10px] text-gray-500 mb-1 capitalize">{f}</p>
                         <input type="text" value={newEx[f]} onChange={e => setNewEx(p => ({ ...p, [f]: e.target.value }))}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2 py-2 text-sm text-white text-center outline-none focus:border-yellow-500/50" />
+                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2 py-2 text-sm text-gray-200 text-center outline-none focus:border-yellow-500/50" />
                       </div>
                     ))}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={addExercise}
-                      className="flex-1 py-2.5 rounded-xl bg-yellow-400 text-black text-sm font-bold hover:bg-yellow-300">Add</button>
+                      className="flex-1 py-2.5 rounded-xl bg-yellow-400 text-on-accent text-sm font-bold hover:bg-yellow-300">Add</button>
                     <button onClick={() => setShowAddForm(false)}
                       className="py-2.5 px-4 rounded-xl bg-gray-800 text-gray-400 text-sm hover:bg-gray-700">Cancel</button>
                   </div>
@@ -754,7 +797,7 @@ export default function WorkoutTab() {
           )}
           {editMode && isCustomized && (
             <button onClick={resetToDefault}
-              className="w-full py-2.5 text-xs text-gray-500 hover:text-red-400 border border-gray-800 rounded-xl">
+              className="w-full py-2.5 text-xs text-gray-500 hover:text-bad border border-gray-800 rounded-xl">
               Reset to default workout
             </button>
           )}
@@ -764,10 +807,10 @@ export default function WorkoutTab() {
         <div className={`rounded-2xl p-4 border transition-all ${abDoneCount === abTotal ? "bg-green-500/5 border-green-500/30" : "bg-purple-500/5 border-purple-500/30"}`}>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-purple-400">Step 3 — Ab Finisher</p>
-              <p className="text-sm font-semibold text-white mt-0.5">Core circuit · every session</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-alt">Step 3 — Ab Finisher</p>
+              <p className="text-sm font-semibold text-gray-200 mt-0.5">Core circuit · every session</p>
             </div>
-            <span className={`text-xs font-bold ${abDoneCount === abTotal ? "text-green-400" : "text-purple-400"}`}>{abDoneCount}/{abTotal}</span>
+            <span className={`text-xs font-bold ${abDoneCount === abTotal ? "text-good" : "text-alt"}`}>{abDoneCount}/{abTotal}</span>
           </div>
           <div className="space-y-2">
             {AB_EXERCISES.map(ex => {
@@ -776,15 +819,15 @@ export default function WorkoutTab() {
                 <div key={ex.name} className={`rounded-xl border p-3 transition-all ${done ? "bg-green-500/5 border-green-500/20" : "bg-gray-900/50 border-gray-800"}`}>
                   <button onClick={() => setAbsDone(p => ({ ...p, [ex.name]: !done }))}
                     className="w-full flex items-center gap-3 text-left">
-                    <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0 ${done ? "bg-green-500 text-white" : "bg-gray-800 text-gray-400"}`}>
+                    <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0 ${done ? "bg-green-500 text-gray-200" : "bg-gray-800 text-gray-400"}`}>
                       {done ? "✓" : ""}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-semibold ${done ? "text-gray-500 line-through" : "text-white"}`}>{ex.name}</p>
+                      <p className={`text-sm font-semibold ${done ? "text-gray-500 line-through" : "text-gray-200"}`}>{ex.name}</p>
                       <p className="text-xs text-gray-500">{ex.sets} sets × {ex.reps}{ex.rest ? ` · ${ex.rest} rest` : ""}</p>
                     </div>
                   </button>
-                  {!done && ex.notes && <p className="text-xs text-purple-300/60 mt-2 pl-9 leading-relaxed">{ex.notes}</p>}
+                  {!done && ex.notes && <p className="text-xs text-alt/60 mt-2 pl-9 leading-relaxed">{ex.notes}</p>}
                 </div>
               );
             })}
@@ -795,10 +838,10 @@ export default function WorkoutTab() {
         <div className={`rounded-2xl p-4 border transition-all ${cooldownDone ? "bg-green-500/5 border-green-500/30" : "bg-blue-500/5 border-blue-500/30"}`}>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-blue-400">Step 4 — Cool Down</p>
-              <p className="text-sm font-semibold text-white mt-0.5">5 minutes · stretch it out</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-info">Step 4 — Cool Down</p>
+              <p className="text-sm font-semibold text-gray-200 mt-0.5">5 minutes · stretch it out</p>
             </div>
-            {cooldownDone && <span className="text-green-400 text-lg font-bold">✓</span>}
+            {cooldownDone && <span className="text-good text-lg font-bold">✓</span>}
           </div>
           {!cooldownDone ? (
             <div className="space-y-3">
@@ -811,17 +854,17 @@ export default function WorkoutTab() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => startTimer(5 * 60, "Cool-Down")}
-                  className="flex-1 py-2 rounded-xl bg-blue-400/20 text-blue-300 text-sm font-semibold hover:bg-blue-400/30">
+                  className="flex-1 py-2 rounded-xl bg-blue-400/20 text-info text-sm font-semibold hover:bg-blue-400/30">
                   Start 5-min timer
                 </button>
                 <button onClick={() => setCooldownDone(true)}
-                  className="py-2 px-4 rounded-xl bg-green-500/20 text-green-400 text-sm font-semibold hover:bg-green-500/30">
+                  className="py-2 px-4 rounded-xl bg-green-500/20 text-good text-sm font-semibold hover:bg-green-500/30">
                   Done
                 </button>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-green-400">Stretched and recovered — great session</p>
+            <p className="text-xs text-good">Stretched and recovered — great session</p>
           )}
         </div>
 
@@ -829,7 +872,7 @@ export default function WorkoutTab() {
         {mainDone && (
           <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-5 text-center">
             <p className="text-2xl mb-1">🎉</p>
-            <p className="text-lg font-bold text-green-400">Workout Saved!</p>
+            <p className="text-lg font-bold text-good">Workout Saved!</p>
             <p className="text-xs text-gray-400 mt-1 mb-4">
               {abDoneCount < abTotal ? "Weights logged. Finish the ab circuit and cool down when ready." : "All done — mark it complete on the Today tab."}
             </p>

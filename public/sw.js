@@ -1,7 +1,7 @@
 // BWS Shred – Service Worker
 // Caches app shell for offline use
 
-const CACHE_NAME = "bws-shred-v1";
+const CACHE_NAME = "bws-shred-v2";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",

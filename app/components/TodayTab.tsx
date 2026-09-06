@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { workouts, workoutRotation } from "../data/workouts";
+import { getItem, setItem, removeItem } from "../lib/store";
 
 type Tab = "today" | "workout" | "progress";
 type ActivityType = "lift" | "swim" | "bike" | "rest" | null;
@@ -17,12 +18,12 @@ const STEP_GOAL = 10000;
 
 function getRotationIndex(): number {
   if (typeof window === "undefined") return 0;
-  return parseInt(localStorage.getItem(ROTATION_KEY) || "0", 10) % workoutRotation.length;
+  return parseInt(getItem(ROTATION_KEY) || "0", 10) % workoutRotation.length;
 }
 
 function advanceRotation() {
   const next = (getRotationIndex() + 1) % workoutRotation.length;
-  localStorage.setItem(ROTATION_KEY, String(next));
+  setItem(ROTATION_KEY, String(next));
   return next;
 }
 
@@ -34,10 +35,10 @@ const ACTIVITIES: { type: ActivityType; label: string; color: string; icon: stri
 ];
 
 const COLOR = {
-  yellow: { bg: "bg-yellow-400/15 border-yellow-500/40", text: "text-yellow-400", active: "bg-yellow-400 text-black border-yellow-400" },
-  blue:   { bg: "bg-blue-400/15 border-blue-500/40",     text: "text-blue-400",   active: "bg-blue-400 text-black border-blue-400"   },
-  green:  { bg: "bg-green-400/15 border-green-500/40",   text: "text-green-400",  active: "bg-green-400 text-black border-green-400"  },
-  gray:   { bg: "bg-gray-700/30 border-gray-600/40",     text: "text-gray-400",   active: "bg-gray-500 text-white border-gray-500"    },
+  yellow: { bg: "bg-yellow-400/15 border-yellow-500/40", text: "text-accent", active: "bg-yellow-400 text-on-accent border-yellow-400" },
+  blue:   { bg: "bg-blue-400/15 border-blue-500/40",     text: "text-info",   active: "bg-blue-400 text-on-accent border-blue-400"   },
+  green:  { bg: "bg-green-400/15 border-green-500/40",   text: "text-good",  active: "bg-green-400 text-on-accent border-green-400"  },
+  gray:   { bg: "bg-gray-700/30 border-gray-600/40",     text: "text-gray-400",   active: "bg-gray-500 text-gray-200 border-gray-500"    },
 };
 
 const STEP_INCREMENTS = [1000, 2500, 5000];
@@ -65,11 +66,11 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
 
     // Load custom workouts
     try {
-      const mw: CustomWorkout[] = JSON.parse(localStorage.getItem(MY_WORKOUTS_KEY) || "[]");
+      const mw: CustomWorkout[] = JSON.parse(getItem(MY_WORKOUTS_KEY) || "[]");
       setMyWorkouts(mw);
     } catch { /* ignore */ }
 
-    const saved = localStorage.getItem(`bws-today-${dateKey}`);
+    const saved = getItem(`bws-today-${dateKey}`);
     if (saved) {
       const p = JSON.parse(saved);
       setWorkoutDone(p.workoutDone || false);
@@ -82,8 +83,8 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
   }, [dateKey]);
 
   const persist = (updates: object) => {
-    const current = JSON.parse(localStorage.getItem(`bws-today-${dateKey}`) || "{}");
-    localStorage.setItem(`bws-today-${dateKey}`, JSON.stringify({ ...current, ...updates }));
+    const current = JSON.parse(getItem(`bws-today-${dateKey}`) || "{}");
+    setItem(`bws-today-${dateKey}`, JSON.stringify({ ...current, ...updates }));
   };
 
   const selectActivity = (a: ActivityType) => { setActivity(a); persist({ activity: a }); };
@@ -141,8 +142,8 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
 
       {/* Greeting + Progress */}
       <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/10 border border-yellow-500/30 rounded-2xl p-4">
-        <p className="text-sm text-yellow-300/70">{greeting}, Colin</p>
-        <h2 className="text-xl font-bold text-white mt-1">
+        <p className="text-sm text-accent/70">{greeting}, Colin</p>
+        <h2 className="text-xl font-bold text-gray-200 mt-1">
           {activity ? `${activeActivity?.label} Day` : "What are you doing today?"}
         </h2>
         <p className="text-xs text-gray-400 mt-1">
@@ -151,7 +152,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
         <div className="mt-3">
           <div className="flex justify-between text-xs text-gray-400 mb-1">
             <span>Daily Progress</span>
-            <span className="text-yellow-400 font-bold">{progress}%</span>
+            <span className="text-accent font-bold">{progress}%</span>
           </div>
           <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full transition-all duration-500"
@@ -161,16 +162,16 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
       </div>
 
       {/* Sleep */}
-      <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
+      <div className="bg-card border border-gray-800 rounded-2xl p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-white text-sm">Sleep Last Night</h3>
+            <h3 className="font-bold text-gray-200 text-sm">Sleep Last Night</h3>
             <p className="text-xs text-gray-500 mt-0.5">Log from Garmin</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => adjustSleep(-0.5)}
               className="w-8 h-8 rounded-lg bg-gray-800 text-gray-300 text-lg font-bold hover:bg-gray-700 flex items-center justify-center">−</button>
-            <span className="text-xl font-bold text-white min-w-[52px] text-center">
+            <span className="text-xl font-bold text-gray-200 min-w-[52px] text-center">
               {sleepHours !== null ? `${sleepHours}h` : "—"}
             </span>
             <button onClick={() => adjustSleep(0.5)}
@@ -184,7 +185,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
                 sleepHours >= 7.5 ? "bg-green-400" : sleepHours >= 6 ? "bg-yellow-400" : "bg-red-400"
               }`} style={{ width: `${Math.min((sleepHours / 9) * 100, 100)}%` }} />
             </div>
-            <p className={`text-xs mt-1 ${sleepHours >= 7.5 ? "text-green-400" : sleepHours >= 6 ? "text-yellow-400" : "text-red-400"}`}>
+            <p className={`text-xs mt-1 ${sleepHours >= 7.5 ? "text-good" : sleepHours >= 6 ? "text-accent" : "text-bad"}`}>
               {sleepHours >= 7.5 ? "Well rested — great for muscle recovery" : sleepHours >= 6 ? "Decent — aim for 7.5h+" : "Low — prioritise sleep tonight"}
             </p>
           </div>
@@ -192,15 +193,15 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
       </div>
 
       {/* Steps */}
-      <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
+      <div className="bg-card border border-gray-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="font-bold text-white text-sm">Steps Today</h3>
+            <h3 className="font-bold text-gray-200 text-sm">Steps Today</h3>
             <p className="text-xs text-gray-500 mt-0.5">Goal: {STEP_GOAL.toLocaleString()}</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-black text-white">{steps.toLocaleString()}</p>
-            <p className={`text-xs font-semibold ${steps >= STEP_GOAL ? "text-green-400" : "text-gray-500"}`}>
+            <p className="text-2xl font-black text-gray-200">{steps.toLocaleString()}</p>
+            <p className={`text-xs font-semibold ${steps >= STEP_GOAL ? "text-good" : "text-gray-500"}`}>
               {steps >= STEP_GOAL ? "Goal reached! 🎉" : `${(STEP_GOAL - steps).toLocaleString()} to go`}
             </p>
           </div>
@@ -249,10 +250,10 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
               value={stepInput}
               onChange={e => setStepInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && setStepsManual()}
-              className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-yellow-500/50"
+              className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-yellow-500/50"
             />
             <button onClick={setStepsManual}
-              className="px-4 py-2 bg-yellow-400 text-black text-sm font-bold rounded-xl hover:bg-yellow-300">
+              className="px-4 py-2 bg-yellow-400 text-on-accent text-sm font-bold rounded-xl hover:bg-yellow-300">
               Set
             </button>
           </div>
@@ -260,8 +261,8 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
       </div>
 
       {/* Activity Picker */}
-      <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4">
-        <h3 className="font-bold text-white mb-3">Today&apos;s Activity</h3>
+      <div className="bg-card border border-gray-800 rounded-2xl p-4">
+        <h3 className="font-bold text-gray-200 mb-3">Today&apos;s Activity</h3>
         <div className="grid grid-cols-2 gap-2">
           {ACTIVITIES.map((a) => {
             const c = COLOR[a.color as keyof typeof COLOR];
@@ -281,7 +282,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
 
       {/* Lift Panel */}
       {activity === "lift" && (
-        <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl p-4 space-y-4">
+        <div className="bg-card border border-gray-800 rounded-2xl p-4 space-y-4">
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Which workout today?</p>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -293,15 +294,15 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
                   <button key={key} onClick={() => pickWorkout(key)}
                     className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl border text-xs font-semibold transition-all min-w-[60px] ${
                       isSelected
-                        ? "bg-yellow-400 text-black border-yellow-400"
+                        ? "bg-yellow-400 text-on-accent border-yellow-400"
                         : isSuggested
-                        ? "bg-yellow-400/10 text-yellow-300 border-yellow-500/30"
+                        ? "bg-yellow-400/10 text-accent border-yellow-500/30"
                         : "bg-gray-900 text-gray-400 border-gray-700 hover:border-gray-500"
                     }`}>
                     <span className="text-base">{w.emoji}</span>
                     <span className="mt-0.5 uppercase tracking-tight">{key}</span>
                     {isSuggested && !isSelected && (
-                      <span className="text-[9px] text-yellow-400 mt-0.5">suggested</span>
+                      <span className="text-[9px] text-accent mt-0.5">suggested</span>
                     )}
                   </button>
                 );
@@ -312,8 +313,8 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
                   <button key={w.key} onClick={() => pickWorkout(w.key)}
                     className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl border text-xs font-semibold transition-all min-w-[60px] ${
                       isSelected
-                        ? "bg-yellow-400 text-black border-yellow-400"
-                        : "bg-purple-900/30 text-purple-300 border-purple-700/50 hover:border-purple-500"
+                        ? "bg-yellow-400 text-on-accent border-yellow-400"
+                        : "bg-purple-900/30 text-alt border-purple-700/50 hover:border-purple-500"
                     }`}>
                     <span className="text-base">{w.emoji}</span>
                     <span className="mt-0.5 text-center leading-tight">{w.name.split(" ")[0]}</span>
@@ -325,16 +326,16 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-white">{chosenWorkout.emoji} {chosenWorkout.name}</h3>
+              <h3 className="font-bold text-gray-200">{chosenWorkout.emoji} {chosenWorkout.name}</h3>
               <button onClick={() => onNavigate("workout")}
-                className="text-xs text-yellow-400 border border-yellow-500/30 px-3 py-1.5 rounded-lg hover:bg-yellow-400/10">
+                className="text-xs text-accent border border-yellow-500/30 px-3 py-1.5 rounded-lg hover:bg-yellow-400/10">
                 Open →
               </button>
             </div>
             <div className="space-y-1.5">
               {chosenWorkout.exercises.slice(0, 4).map((ex, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
-                  <span className="text-yellow-400 font-mono text-xs w-4">{i + 1}.</span>
+                  <span className="text-accent font-mono text-xs w-4">{i + 1}.</span>
                   <span className="flex-1 truncate">{ex.name}</span>
                   <span className="text-gray-500 text-xs">{ex.sets}×{ex.reps}</span>
                 </div>
@@ -348,8 +349,8 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
           <button onClick={markWorkoutDone}
             className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
               workoutDone
-                ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                : "bg-yellow-400 text-black hover:bg-yellow-300"
+                ? "bg-green-500/20 text-good border border-green-500/30"
+                : "bg-yellow-400 text-on-accent hover:bg-yellow-300"
             }`}>
             {workoutDone ? `Done! Next: ${workoutRotation[rotationIdx % workoutRotation.length]}` : "Mark Workout Complete"}
           </button>
@@ -358,17 +359,17 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
 
       {activity === "swim" && (
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 space-y-4">
-          <h3 className="font-bold text-white">Swim Session</h3>
+          <h3 className="font-bold text-gray-200">Swim Session</h3>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-3xl font-bold text-blue-400">{swimMeters}<span className="text-lg ml-1 font-normal text-blue-300">m</span></p>
+              <p className="text-3xl font-bold text-info">{swimMeters}<span className="text-lg ml-1 font-normal text-info">m</span></p>
               <p className="text-xs text-gray-500 mt-0.5">{swimMeters >= 1000 ? `${(swimMeters / 1000).toFixed(1)}km` : `${Math.round(swimMeters / 25)} lengths (25m pool)`}</p>
             </div>
             <div className="flex gap-2">
               {[100, 250, 500].map(n => (
                 <button key={n}
                   onClick={() => { const v = swimMeters + n; setSwimMeters(v); persist({ swimMeters: v }); }}
-                  className="px-3 py-2 rounded-xl bg-blue-500/20 text-blue-300 text-sm font-semibold hover:bg-blue-500/30">
+                  className="px-3 py-2 rounded-xl bg-blue-500/20 text-info text-sm font-semibold hover:bg-blue-500/30">
                   +{n}
                 </button>
               ))}
@@ -381,7 +382,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
             </div>
           )}
           <div className="flex items-center justify-between">
-            <p className="text-xs text-blue-300/60">Goal: 2000m / session</p>
+            <p className="text-xs text-info/60">Goal: 2000m / session</p>
             {swimMeters > 0 && (
               <button onClick={() => { setSwimMeters(0); persist({ swimMeters: 0 }); }}
                 className="text-xs text-gray-600 hover:text-gray-400">Reset</button>
@@ -398,7 +399,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
       {/* Weekend note */}
       {isWeekend() && (
         <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-3">
-          <p className="text-xs text-purple-300 font-semibold">Weekend — Enjoy it</p>
+          <p className="text-xs text-alt font-semibold">Weekend — Enjoy it</p>
           <p className="text-xs text-gray-400 mt-0.5">Consistency over perfection. One off day doesn&apos;t undo your progress.</p>
         </div>
       )}
@@ -416,13 +417,13 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
 
 function ActiveCard({ title, tip, color }: { title: string; tip: string; color: string }) {
   const colorMap: Record<string, string> = {
-    blue:  "bg-blue-500/10 border-blue-500/30 text-blue-400",
-    green: "bg-green-500/10 border-green-500/30 text-green-400",
+    blue:  "bg-blue-500/10 border-blue-500/30 text-info",
+    green: "bg-green-500/10 border-green-500/30 text-good",
     gray:  "bg-gray-700/20 border-gray-600/30 text-gray-400",
   };
   return (
     <div className={`rounded-2xl p-4 border ${colorMap[color]}`}>
-      <h3 className="font-bold text-white text-base mb-1">{title}</h3>
+      <h3 className="font-bold text-gray-200 text-base mb-1">{title}</h3>
       <p className="text-sm leading-relaxed opacity-80">{tip}</p>
     </div>
   );
@@ -430,10 +431,10 @@ function ActiveCard({ title, tip, color }: { title: string; tip: string; color: 
 
 function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
   const colorMap: Record<string, string> = {
-    yellow: "text-yellow-400 bg-yellow-400/10 border-yellow-500/20",
-    blue:   "text-blue-400 bg-blue-400/10 border-blue-500/20",
-    green:  "text-green-400 bg-green-400/10 border-green-500/20",
-    purple: "text-purple-400 bg-purple-400/10 border-purple-500/20",
+    yellow: "text-accent bg-yellow-400/10 border-yellow-500/20",
+    blue:   "text-info bg-blue-400/10 border-blue-500/20",
+    green:  "text-good bg-green-400/10 border-green-500/20",
+    purple: "text-alt bg-purple-400/10 border-purple-500/20",
     gray:   "text-gray-400 bg-gray-800/50 border-gray-700/30",
   };
   return (
