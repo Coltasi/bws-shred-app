@@ -6,17 +6,20 @@ import WorkoutTab from "./components/WorkoutTab";
 import ProgressTab from "./components/ProgressTab";
 import NutritionTab from "./components/NutritionTab";
 import BodyTab from "./components/BodyTab";
+import CoachTab from "./components/CoachTab";
 import SettingsSheet from "./components/SettingsSheet";
 import { useStoreReady } from "./components/AppBoot";
 import { getItem, setItem, subscribe } from "./lib/store";
+import { buildDigest, isBriefingStale } from "./lib/coach";
 
-type Tab = "today" | "workout" | "nutrition" | "body" | "progress";
+type Tab = "today" | "workout" | "nutrition" | "body" | "coach" | "progress";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "today",     label: "Today"  },
   { id: "workout",   label: "Train"  },
   { id: "nutrition", label: "Fuel"   },
   { id: "body",      label: "Body"   },
+  { id: "coach",     label: "Coach"  },
   { id: "progress",  label: "Stats"  },
 ];
 
@@ -69,6 +72,14 @@ function NavIcon({ id, active }: { id: Tab; active: boolean }) {
     </svg>
   );
 
+  // Coach — a speech bubble
+  if (id === "coach") return (
+    <svg {...common}>
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.6 9.6 0 0 1-2.9-.4L3 21l1.6-4.7A8.1 8.1 0 0 1 3.6 11.5 8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z" />
+      <path d="M8.6 11.5h.01M12 11.5h.01M15.4 11.5h.01" strokeWidth="2.2" />
+    </svg>
+  );
+
   // Stats — a trend line
   return (
     <svg {...common}>
@@ -89,6 +100,11 @@ export default function Home() {
   const activeTab: Tab = tabs.some(t => t.id === stored) ? (stored as Tab) : "today";
 
   const handleTabChange = (tab: Tab) => setItem(TAB_KEY, tab);
+
+  // Dot on the Coach tab once the numbers behind the last briefing have moved.
+  // Recomputed on every store change, which is what makes it appear the moment
+  // a workout is saved.
+  const coachStale = ready ? isBriefingStale(buildDigest()) : false;
 
   return (
     <div className="flex flex-col min-h-screen bg-page max-w-md mx-auto relative">
@@ -125,6 +141,7 @@ export default function Home() {
             {activeTab === "workout"   && <WorkoutTab />}
             {activeTab === "nutrition" && <NutritionTab />}
             {activeTab === "body"      && <BodyTab />}
+            {activeTab === "coach"     && <CoachTab />}
             {activeTab === "progress"  && <ProgressTab />}
           </>
         )}
@@ -136,11 +153,15 @@ export default function Home() {
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all ${
+              className={`relative flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl transition-all ${
                 activeTab === tab.id ? "bg-yellow-400/10" : "active:bg-gray-800/50"
               }`}
             >
               <NavIcon id={tab.id} active={activeTab === tab.id} />
+              {tab.id === "coach" && coachStale && activeTab !== "coach" && (
+                <span aria-label="New coach briefing available"
+                  className="absolute top-0.5 right-1.5 w-2 h-2 rounded-full bg-yellow-400" />
+              )}
               <span className={`text-[10px] font-medium transition-colors ${
                 activeTab === tab.id ? "text-accent" : "text-gray-500"
               }`}>{tab.label}</span>
