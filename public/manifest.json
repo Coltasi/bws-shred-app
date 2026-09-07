@@ -1,24 +1,39 @@
 {
+  "id": "/",
   "name": "BWS Shred",
   "short_name": "BWS Shred",
   "description": "Built With Science + kettlebell training, adaptive TDEE, and Tanita body-composition tracking.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#eef4f7",
   "theme_color": "#eef4f7",
   "orientation": "portrait",
+  "categories": ["health", "fitness", "lifestyle"],
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

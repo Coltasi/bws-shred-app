@@ -5,7 +5,7 @@ import { Card, NumberField, Pill } from "./ui";
 import { useStoreRevision } from "./AppBoot";
 import { getProfile, saveProfile, getDaily, scanList, getSessions } from "../lib/data";
 import { persistenceStatus } from "../lib/store";
-import { isStandalone, type PersistenceStatus } from "../lib/db";
+import { isAppleMobile, isStandalone, type PersistenceStatus } from "../lib/db";
 import {
   syncConfigured, currentSession, signIn, signOut, push, pull,
   downloadExport, importFromFile, lastSyncError,
@@ -33,6 +33,10 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
   const dayCount = Object.keys(daily).length;
   const scanCount = scanList().length;
   const sessionCount = getSessions().length;
+
+  // Only meaningful once the client effect has run, which also keeps it out of
+  // the server render where navigator does not exist.
+  const apple = persist ? isAppleMobile() : false;
 
   const usageMb = persist?.usage != null ? (persist.usage / 1_048_576).toFixed(1) : null;
   const quotaMb = persist?.quota != null ? (persist.quota / 1_048_576).toFixed(0) : null;
@@ -90,15 +94,21 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
         <Card title="Data safety" subtitle="Three independent layers">
           <Layer
             ok={persist?.standalone ?? isStandalone()}
-            title="Installed to home screen"
-            good="Installed. Safari's 7-day storage wipe does not apply."
-            bad="Not installed. In a Safari tab, iOS deletes all app data after 7 days without a visit. Open the share sheet and choose Add to Home Screen — this is the single most important thing on this page."
+            title="Installed as an app"
+            good={apple
+              ? "Installed. The 7-day storage wipe does not apply."
+              : "Installed. Chrome grants this origin persistent storage automatically."}
+            bad={apple
+              ? "Not installed. In a browser tab on iOS, all app data is deleted after 7 days without a visit. Share sheet, then Add to Home Screen."
+              : "Not installed. Chrome menu, then Install app. Installing is what makes the persistence grant below automatic."}
           />
           <Layer
             ok={persist?.persisted ?? false}
             title="Persistent storage granted"
             good="Granted. Data is only removed if you clear it deliberately."
-            bad="Not yet granted. Browsers award this based on engagement, so it usually flips on after a few days of real use. Installing to the home screen makes it far more likely."
+            bad={apple
+              ? "Not yet granted. WebKit awards this on engagement, so it usually flips on after a few days of real use."
+              : "Not yet granted. Installing the app is normally enough on Chrome; otherwise a few days of real use does it."}
           />
           <Layer
             ok={Boolean(signedInAs)}

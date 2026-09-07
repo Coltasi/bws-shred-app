@@ -9,8 +9,20 @@
  *      is granted), so it will not be the thing that breaks.
  *   3. It's async, so large writes don't block the main thread mid-workout.
  *
- * IndexedDB does NOT on its own survive Safari's 7-day eviction. That's what
- * requestPersistence() and installing to the home screen are for.
+ * IndexedDB is not automatically permanent. What threatens it differs by
+ * browser, and the difference matters enough that the UI reports it separately:
+ *
+ *   Chrome / Android  — no timer. Data is evicted only when the device runs
+ *                       genuinely low on disk, and persistent storage exempts
+ *                       the origin from even that. Installing the app makes the
+ *                       persistence grant automatic.
+ *   Safari / iOS      — seven days without a visit wipes all script-written
+ *                       storage in a plain tab. Installing to the home screen
+ *                       is the exemption.
+ *
+ * Either way the answer is the same: install it, and hold the persistence
+ * grant. requestPersistence() asks for the grant; isStandalone() reports
+ * whether it is installed.
  */
 
 const DB_NAME = "bws-shred";
@@ -104,14 +116,11 @@ export interface PersistenceStatus {
 /**
  * Ask the browser to mark this origin's storage as persistent.
  *
- * Chrome and WebKit grant this silently based on engagement heuristics
- * (installed app, bookmarked, frequent visits). Firefox prompts. When granted,
- * data is only removed if the user explicitly clears it — which is the whole
- * point, because Safari otherwise deletes all script-written storage after
- * 7 days without interaction.
+ * Chrome and WebKit grant this silently based on engagement heuristics.
+ * Chrome treats an installed PWA as sufficient on its own, so on Android this
+ * usually flips to true the moment the app is installed. Firefox prompts.
  *
- * Installing to the home screen is the more reliable protection on iOS, so the
- * UI nags about that separately.
+ * When granted, data is removed only if the user clears it deliberately.
  */
 export async function requestPersistence(): Promise<PersistenceStatus> {
   const standalone = isStandalone();
@@ -134,6 +143,20 @@ export async function requestPersistence(): Promise<PersistenceStatus> {
   } catch { /* ignore */ }
 
   return { persisted, usage, quota, standalone, supported: true };
+}
+
+/**
+ * True on iOS/iPadOS, where every browser is WebKit underneath and the 7-day
+ * eviction rule applies regardless of which browser icon was tapped. Used only
+ * to decide which install instructions and which storage warning to show.
+ *
+ * iPadOS reports itself as a Mac, hence the touch-point check.
+ */
+export function isAppleMobile(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) ||
+    (/Macintosh/.test(ua) && (navigator.maxTouchPoints ?? 0) > 1);
 }
 
 export function isStandalone(): boolean {

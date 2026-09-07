@@ -1,12 +1,17 @@
 // BWS Shred – Service Worker
 // Caches app shell for offline use
 
-const CACHE_NAME = "bws-shred-v2";
+// Bump this whenever a precached file changes under an unchanged name. The
+// icons were redrawn in place, so v2 caches still hold the old artwork; the
+// activate handler below deletes any cache that is not the current name.
+const CACHE_NAME = "bws-shred-v3";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
   "/icon-192.png",
   "/icon-512.png",
+  "/icon-maskable-192.png",
+  "/icon-maskable-512.png",
 ];
 
 // Install: cache static assets

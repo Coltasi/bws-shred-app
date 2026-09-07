@@ -11,12 +11,15 @@ Next.js 16 · React 19 · Tailwind 4 · IndexedDB · optional Supabase backup.
 
 The original build kept everything in `localStorage`. Two problems with that:
 
-1. **Safari deletes it.** WebKit's Intelligent Tracking Prevention wipes all
-   script-written storage for an origin after 7 days without user interaction.
-   Two exemptions apply: the site is installed to the home screen, or
-   `navigator.storage.persist()` has been granted.
-2. **It caps at ~5 MB and fails silently.** Adding daily calorie logs and body
-   scans moves the app toward that ceiling, and a `QuotaExceededError` in a
+1. **Browsers evict it, on different rules.** On Chrome and Android there is no
+   timer, but storage is fair game when the device runs low on disk unless the
+   origin holds a persistence grant — which Chrome awards automatically to an
+   installed PWA. On iOS, where every browser is WebKit, Intelligent Tracking
+   Prevention wipes all script-written storage after 7 days without user
+   interaction, exempting home-screen installs and granted persistence.
+   Installing the app plus `navigator.storage.persist()` covers both.
+2. **It caps at ~5 MB and fails silently.** Daily weigh-ins, workout history and
+   body scans move the app toward that ceiling, and a `QuotaExceededError` in a
    write path with no error handling loses data without telling anyone.
 
 So data safety is now three independent layers, surfaced in Settings so it is
@@ -24,7 +27,7 @@ obvious which are actually active:
 
 | Layer | Protects against | Where |
 |---|---|---|
-| Home-screen install + `storage.persist()` | Safari's 7-day wipe | `app/lib/db.ts` |
+| App install + `storage.persist()` | Chrome low-disk eviction; WebKit's 7-day wipe | `app/lib/db.ts` |
 | IndexedDB (localStorage kept as a mirror) | The 5 MB cap, silent write failure | `app/lib/store.ts` |
 | Supabase JSONB snapshot, or JSON export | Losing or wiping the phone | `app/lib/sync.ts` |
 
