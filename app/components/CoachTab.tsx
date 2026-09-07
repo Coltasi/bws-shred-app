@@ -192,12 +192,28 @@ export default function CoachTab() {
       )}
 
       {briefing?.source === "local" && (
-        <div className="bg-yellow-400/8 border border-yellow-500/25 rounded-2xl p-3">
+        <div className="bg-yellow-400/8 border border-yellow-500/25 rounded-2xl p-3 space-y-2">
           <p className="text-[11px] text-gray-400 leading-relaxed">
-            This read was generated on-device from the rules engine, not the model — either the
-            server has no <code className="text-accent">ANTHROPIC_API_KEY</code> set, or the request
-            failed. The numbers are identical either way; only the wording is blunter.
+            Generated on-device from the rules engine, not the model. The numbers are identical
+            either way; only the wording is blunter.
           </p>
+          {briefing.fallbackReason && (
+            <p className="text-[11px] text-accent font-mono leading-relaxed break-words">
+              {briefing.fallbackReason}
+            </p>
+          )}
+          {briefing.fallbackReason?.includes("not-configured") && (
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              The key is missing from the running build. If you have already added it, redeploy —
+              environment variables only apply to builds created after they were saved.
+            </p>
+          )}
+          {briefing.fallbackReason?.includes("authentication") && (
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              The key reached Anthropic and was rejected. Check it was copied whole, and that the
+              account has API credits.
+            </p>
+          )}
         </div>
       )}
     </div>

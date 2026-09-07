@@ -250,6 +250,12 @@ export interface Briefing {
   nextAction: string;
   generatedAt: string;
   source: "haiku" | "local";
+  /**
+   * Why the model was not used, when it wasn't. Carries the real HTTP status
+   * and server message so the failure can be diagnosed from the phone rather
+   * than from Vercel's logs.
+   */
+  fallbackReason?: string;
   /** The digest it was generated from, so the tab can show the numbers behind it. */
   digest: CoachDigest;
 }
@@ -260,7 +266,7 @@ export interface Briefing {
  * blunter than the model version but it is never wrong, because it only states
  * what the numbers already say.
  */
-export function localBriefing(dg: CoachDigest): Briefing {
+export function localBriefing(dg: CoachDigest, fallbackReason?: string): Briefing {
   const u = dg.unit;
   const kg = (n: number) => (u === "kg" ? n : n * 2.2046226218);
   const fmt = (n: number, dp = 2) => `${n > 0 ? "+" : ""}${kg(n).toFixed(dp)} ${u}`;
@@ -334,6 +340,7 @@ export function localBriefing(dg: CoachDigest): Briefing {
     headline, lifting, diet, body, nextAction,
     generatedAt: new Date().toISOString(),
     source: "local",
+    fallbackReason,
     digest: dg,
   };
 }
@@ -389,16 +396,28 @@ export async function fetchBriefing(dg: CoachDigest): Promise<Briefing> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ digest: dg }),
     });
-    if (!res.ok) return localBriefing(dg);
+    if (!res.ok) {
+      // Surface what the server actually said. "Something went wrong" costs an
+      // hour of guessing; "503 not-configured, accepts: ..." costs none.
+      let detail = "";
+      try {
+        const err = await res.json();
+        detail = [err?.error, err?.message].filter(Boolean).join(": ");
+      } catch { /* non-JSON error body */ }
+      return localBriefing(dg, `HTTP ${res.status}${detail ? ` — ${detail}` : ""}`);
+    }
     const data = await res.json();
-    if (!data?.briefing?.headline) return localBriefing(dg);
+    if (!data?.briefing?.headline) {
+      return localBriefing(dg, "The server replied but the briefing was empty.");
+    }
     return {
       ...data.briefing,
       generatedAt: new Date().toISOString(),
       source: "haiku" as const,
       digest: dg,
     };
-  } catch {
-    return localBriefing(dg);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return localBriefing(dg, `Could not reach /api/coach — ${msg}`);
   }
 }
