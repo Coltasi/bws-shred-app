@@ -40,17 +40,25 @@ non-destructively: the originals are left in `localStorage` untouched.
 Verified against the workbook's own worked example (226.8 lb male, 27% BF,
 intermediate, cutting → 2,182 kcal / 166 P / 61 F / 244 C).
 
-The load-bearing idea is that **TDEE is measured, not predicted**:
+**Food intake is deliberately not logged.** The spreadsheet's original trick was
+measuring TDEE by comparing logged calories against weight change, which is more
+accurate but needs four numbers a day. A food log that gets abandoned in week
+three is worth less than no food log, so the app shows the macro targets as a
+reference and tracks nothing about whether you hit them.
+
+The targets still self-correct, from the scale alone:
 
 ```
-TDEE = average daily calories + (weight lost that week × 7716 kcal/kg ÷ days logged)
+gap = goal weekly change − observed weekly change
+suggested daily change = gap × 7716 kcal/kg ÷ 7
 ```
 
-For the first three weeks there isn't enough data, so it falls back to
-Katch-McArdle × 1.5. After that it uses arithmetic on real results, smoothed
-across the last three weeks so one bad week of water retention doesn't yank the
-calorie target around. The UI labels which of the two is in play and why,
-because a number presented with false confidence is worse than no number.
+If you should be losing 0.69 kg a week and you are losing 0.2, the target is
+roughly 380 kcal too high. Blunter than measuring intake, and it assumes you are
+eating near the target, but it closes the loop on one number a day. It needs two
+comparable weekly averages before it says anything, because a single week of
+scale movement is mostly water, and it never swings the target by more than
+300 kcal at once.
 
 Body fat comes from a Tanita scan when one exists, a Navy tape estimate when it
 doesn't, and an assumption only as a last resort — and the tab says which.

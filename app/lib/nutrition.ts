@@ -222,6 +222,45 @@ export function macroTargets(
   };
 }
 
+/**
+ * Weight-driven calorie adjustment.
+ *
+ * With no food logging there is no way to *measure* TDEE, so the target starts
+ * as an equation estimate. But the scale still says whether that estimate is
+ * right: if you are meant to be losing 0.69 kg a week and you are losing 0.2,
+ * the target is too high by roughly the difference, converted to calories.
+ *
+ * That closes the loop with one number a day instead of four. It is slower and
+ * blunter than measuring intake directly — it assumes you are actually eating
+ * near the target — but it self-corrects, which a fixed equation never does.
+ *
+ * Returns null until there are two comparable weekly averages; a single week of
+ * scale movement is mostly water and adjusting on it makes things worse.
+ */
+export function weightDrivenAdjustment(
+  weeks: WeekBucket[], goalWeeklyChangeKg: number,
+): { deltaKcal: number; observedWeeklyChangeKg: number; weeksUsed: number } | null {
+  const usable = weeks.filter(w => w.avgWeightKg != null && w.daysWeightLogged >= 3);
+  if (usable.length < 2) return null;
+
+  const recent = usable.slice(-3);
+  const first = recent[0].avgWeightKg!;
+  const last = recent[recent.length - 1].avgWeightKg!;
+  const spans = recent.length - 1;
+  const observed = (last - first) / spans;
+
+  const gap = goalWeeklyChangeKg - observed;      // negative = losing too slowly
+  const deltaKcal = Math.round((gap * KCAL_PER_KG_FAT) / 7);
+
+  // Ignore noise, and never swing the target by more than 300 kcal at once.
+  if (Math.abs(deltaKcal) < 75) return null;
+  return {
+    deltaKcal: Math.max(-300, Math.min(300, deltaKcal)),
+    observedWeeklyChangeKg: Math.round(observed * 100) / 100,
+    weeksUsed: recent.length,
+  };
+}
+
 export interface NutritionPlan {
   bodyFatPct: number | null;
   bodyFatSource: "tanita" | "navy" | "assumed";
@@ -237,6 +276,8 @@ export interface NutritionPlan {
   /** Human-readable caveat when the plan is running on assumptions. */
   confidence: "high" | "medium" | "low";
   confidenceNote: string;
+  /** Suggested calorie change based purely on the weight trend, when available. */
+  adjustment: ReturnType<typeof weightDrivenAdjustment>;
 }
 
 /**
@@ -281,19 +322,24 @@ export function buildPlan(
   // Never prescribe below a floor — the spreadsheet uses 1500 kcal.
   const calories = Math.max(1500, tdee + dailyDelta);
 
+  const adjustment = weightDrivenAdjustment(weeks, weeklyChange);
   const targets = macroTargets(calories, weightForCalc);
 
+  const weighInWeeks = weeks.filter(w => w.daysWeightLogged >= 3).length;
   let confidence: NutritionPlan["confidence"] = "low";
   let confidenceNote: string;
-  if (useMeasured && bodyFatSource === "tanita") {
+  if (adjustment && bodyFatSource === "tanita") {
     confidence = "high";
-    confidenceNote = `Measured from ${weeksLogged} weeks of your own logs and your latest scan. This is as accurate as it gets.`;
-  } else if (useMeasured) {
+    confidenceNote = `Calibrated against ${weighInWeeks} weeks of weigh-ins and your latest scan. The scale is telling us whether the target is right.`;
+  } else if (adjustment) {
     confidence = "medium";
-    confidenceNote = `TDEE is measured from your logs, but body fat is ${bodyFatSource === "navy" ? "taped, not scanned" : "assumed"}. A Tanita scan tightens the macros.`;
+    confidenceNote = `Calibrated against your weight trend, but body fat is ${bodyFatSource === "navy" ? "taped, not scanned" : "assumed"}. A Tanita scan tightens the macros.`;
+  } else if (weighInWeeks >= 1) {
+    confidence = "low";
+    confidenceNote = `Estimated from an equation. Two weeks of regular weigh-ins lets the app check that estimate against the scale — ${weighInWeeks} so far.`;
   } else {
     confidence = "low";
-    confidenceNote = `Estimated from an equation, not your data. It needs about 3 weeks of daily weight and calorie logs before it can measure your real expenditure. ${weeksLogged} logged so far.`;
+    confidenceNote = "Estimated from an equation, not your data. Weigh yourself most mornings and the app will start correcting this against the scale.";
   }
 
   return {
@@ -303,6 +349,7 @@ export function buildPlan(
     dailyDelta, targets,
     phase, phaseReason: reason,
     confidence, confidenceNote,
+    adjustment,
   };
 }
 

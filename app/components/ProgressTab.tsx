@@ -237,7 +237,7 @@ export default function ProgressTab() {
     for (let i = 0; i < 14; i++) {
       const d = new Date(); d.setDate(d.getDate() - i);
       const e = daily[toIso(d)];
-      if (e?.calories != null && e?.weightKg != null) set.add(d.toDateString());
+      if (e?.weightKg != null) set.add(d.toDateString());
     }
     return set;
   })();
@@ -248,7 +248,7 @@ export default function ProgressTab() {
     for (let i = 0; i < 7; i++) {
       const d = new Date(); d.setDate(d.getDate() - i);
       const e = daily[toIso(d)];
-      if (e?.calories != null && e?.weightKg != null) n++;
+      if (e?.weightKg != null) n++;
     }
     return n;
   })();
@@ -296,7 +296,7 @@ export default function ProgressTab() {
           <div className="grid grid-cols-2 gap-3">
             <StatBox label="Workout Streak" value={`${workoutStreak}`} unit="days"     emoji="🔥" color="orange" />
             <StatBox label="This Week"       value={`${weeklyWorkouts}/7`} unit="days" emoji="💪" color="yellow" />
-            <StatBox label="Days Logged"      value={`${daysLoggedLast7}`} unit="of last 7" emoji="📝" color="blue" />
+            <StatBox label="Weigh-ins"        value={`${daysLoggedLast7}`} unit="of last 7" emoji="⚖️" color="blue" />
             <StatBox
               label="Weight Change"
               value={weightChange !== null ? (weightChange <= 0 ? `${weightChange}` : `+${weightChange}`) : "—"}
@@ -355,7 +355,7 @@ export default function ProgressTab() {
                     }`}>
                       {!log && !isToday ? "·" : isRest ? "🛌" : hasWork ? "✓" : "○"}
                     </div>
-                    <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden" title={logged ? "Nutrition logged" : "Not logged"}>
+                    <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden" title={logged ? "Weighed in" : "No weigh-in"}>
                       {logged && <div className="h-full w-full bg-blue-400 rounded-full" />}
                     </div>
                     {isToday && <div className="w-1 h-1 rounded-full bg-yellow-400" />}
@@ -365,7 +365,7 @@ export default function ProgressTab() {
             </div>
             <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-600">
               <span>✓ workout</span>
-              <span className="text-info">— logged</span>
+              <span className="text-info">— weighed</span>
               <span>🛌 rest</span>
             </div>
           </div>
@@ -768,7 +768,7 @@ export default function ProgressTab() {
               <Achievement emoji="🌱" title="First Workout" desc="Log your first workout"       unlocked={dailyLogs.some(l => l.workoutDone)} />
               <Achievement emoji="🔥" title="3-Day Streak"  desc="Work out 3 days in a row"    unlocked={workoutStreak >= 3} />
               <Achievement emoji="⚡" title="7-Day Streak"  desc="Work out 7 days in a row"    unlocked={workoutStreak >= 7} />
-              <Achievement emoji="📝" title="Week of Data"   desc="Log weight and calories 7 days running" unlocked={daysLoggedLast7 >= 7} />
+              <Achievement emoji="⚖️" title="Week of Data"   desc="Weigh in 7 days running" unlocked={daysLoggedLast7 >= 7} />
               <Achievement emoji="🏆" title="2-Week Warrior" desc="14-day streak"              unlocked={workoutStreak >= 14} />
               <Achievement emoji="📉" title="First Drop"    desc="Lose your first pound"       unlocked={weightChange !== null && weightChange < -1} />
               <Achievement emoji="💪" title="Getting Stronger" desc="Log weights on 3 workouts" unlocked={allKeys.filter(k => historyData[k] && Object.keys(historyData[k]).length > 0).length >= 3} />
@@ -789,7 +789,7 @@ export default function ProgressTab() {
                 max={7} color="yellow"
               />
               <ProgressRow
-                label="Days Logged (weight + calories)"
+                label="Weigh-ins"
                 value={daysLoggedLast7}
                 max={7} color="blue"
               />

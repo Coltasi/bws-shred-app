@@ -100,11 +100,11 @@ export default function CoachTab() {
       <Card title="What it read" subtitle="Every figure above comes from these, computed by the app rather than the model">
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Sessions / 7d" value={dg.training.sessionsLast7} tone={dg.training.sessionsLast7 >= 3 ? "green" : "gray"} />
-          <Stat label="Days logged" value={`${dg.nutrition.daysLoggedLast7}/7`} tone={dg.nutrition.daysLoggedLast7 >= 5 ? "green" : dg.nutrition.daysLoggedLast7 >= 3 ? "yellow" : "red"} />
+          <Stat label="Weigh-ins" value={`${dg.nutrition.daysWeighedLast7}/7`} tone={dg.nutrition.daysWeighedLast7 >= 5 ? "green" : dg.nutrition.daysWeighedLast7 >= 3 ? "yellow" : "red"} />
           <Stat label="Since lift" value={dg.training.daysSinceLast ?? "—"} unit="d" tone={(dg.training.daysSinceLast ?? 99) <= 3 ? "green" : "yellow"} />
 
-          <Stat label="Avg kcal" value={dg.nutrition.avgCaloriesLast7 ?? "—"} tone="gray" hint={`target ${dg.nutrition.targetCalories}`} />
-          <Stat label="Avg protein" value={dg.nutrition.avgProteinLast7 ?? "—"} unit="g" tone="gray" hint={`target ${dg.nutrition.targetProtein}`} />
+          <Stat label="Target kcal" value={dg.nutrition.targetCalories} tone="gray" />
+          <Stat label="Target protein" value={dg.nutrition.targetProtein} unit="g" tone="gray" />
           <Stat label="Wt / week"
             value={dg.weight.weeklyChange == null ? "—" : `${dg.weight.weeklyChange > 0 ? "+" : ""}${disp(dg.weight.weeklyChange, 2)}`}
             unit={u}
@@ -122,10 +122,15 @@ export default function CoachTab() {
           </div>
         )}
 
-        {dg.nutrition.tdeeSource === "baseline" && (
+        {dg.nutrition.suggestedDeltaKcal != null ? (
+          <p className="text-[11px] text-accent mt-3 leading-relaxed">
+            Your weight trend suggests {dg.nutrition.suggestedDeltaKcal > 0 ? "raising" : "lowering"} the
+            calorie target by about {Math.abs(dg.nutrition.suggestedDeltaKcal)} a day. See the Fuel tab.
+          </p>
+        ) : (
           <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">
-            Calorie target is still an equation estimate — {dg.nutrition.weeksLogged} of 3 weeks logged.
-            The coach knows this and will say so rather than treating it as measured.
+            Food intake is not tracked in this app, so the coach reads adherence from the scale
+            alone. Two weeks of regular weigh-ins lets it tell you when the target is wrong.
           </p>
         )}
       </Card>

@@ -44,15 +44,16 @@ export interface CoachDigest {
   };
 
   nutrition: {
-    daysLoggedLast7: number;
-    avgCaloriesLast7: number | null;
+    /** Food is deliberately not logged in this app, so intake is unknown. */
+    intakeTracked: false;
     targetCalories: number;
-    avgProteinLast7: number | null;
     targetProtein: number;
-    /** Positive = ate above target on average. */
-    calorieGapPerDay: number | null;
-    tdeeSource: "measured" | "baseline";
-    weeksLogged: number;
+    targetFat: number;
+    targetCarbs: number;
+    /** Weigh-ins, which is the only adherence signal that exists now. */
+    daysWeighedLast7: number;
+    /** Calorie change the weight trend implies, when there's enough data. */
+    suggestedDeltaKcal: number | null;
   };
 
   weight: {
@@ -149,17 +150,11 @@ export function buildDigest(): CoachDigest {
   const weeks = bucketByWeek(daily);
   const plan = buildPlan(profile, weeks, latestScan());
 
-  let daysLogged = 0, calSum = 0, calN = 0, proSum = 0, proN = 0;
+  let daysWeighed = 0;
   for (let i = 0; i < 7; i++) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    const e = daily[toIso(d)];
-    if (!e) continue;
-    if (e.calories != null && e.weightKg != null) daysLogged++;
-    if (e.calories != null) { calSum += e.calories; calN++; }
-    if (e.proteinG != null) { proSum += e.proteinG; proN++; }
+    if (daily[toIso(d)]?.weightKg != null) daysWeighed++;
   }
-  const avgCal = calN ? Math.round(calSum / calN) : null;
-  const avgPro = proN ? Math.round(proSum / proN) : null;
 
   const windowAvg = (from: number, to: number) => {
     let sum = 0, n = 0;
@@ -212,14 +207,13 @@ export function buildDigest(): CoachDigest {
       moves: moves.slice(0, 8),
     },
     nutrition: {
-      daysLoggedLast7: daysLogged,
-      avgCaloriesLast7: avgCal,
+      intakeTracked: false,
       targetCalories: plan.targets.calories,
-      avgProteinLast7: avgPro,
       targetProtein: plan.targets.proteinG,
-      calorieGapPerDay: avgCal != null ? avgCal - plan.targets.calories : null,
-      tdeeSource: plan.tdeeSource,
-      weeksLogged: plan.weeksLogged,
+      targetFat: plan.targets.fatG,
+      targetCarbs: plan.targets.carbsG,
+      daysWeighedLast7: daysWeighed,
+      suggestedDeltaKcal: plan.adjustment?.deltaKcal ?? null,
     },
     weight: {
       avg7, avgPrev7, weeklyChange,
@@ -291,14 +285,14 @@ export function localBriefing(dg: CoachDigest, fallbackReason?: string): Briefin
   // Diet
   const n = dg.nutrition;
   let diet: string;
-  if (n.daysLoggedLast7 < 3) {
-    diet = `Only ${n.daysLoggedLast7} of the last 7 days logged. Below three the TDEE engine can't run, so the calorie target is still a guess.`;
+  if (n.suggestedDeltaKcal != null) {
+    diet = `Target is ${n.targetCalories} kcal and ${n.targetProtein} g protein. The scale says that is ` +
+      `${n.suggestedDeltaKcal > 0 ? "too low" : "too high"} by roughly ${Math.abs(n.suggestedDeltaKcal)} kcal a day — ` +
+      `assuming you have been eating near it.`;
+  } else if (n.daysWeighedLast7 < 3) {
+    diet = `Target is ${n.targetCalories} kcal and ${n.targetProtein} g protein. Only ${n.daysWeighedLast7} weigh-ins this week, so there is no way to tell whether that target is right.`;
   } else {
-    const gap = n.calorieGapPerDay ?? 0;
-    const proteinShort = n.avgProteinLast7 != null && n.avgProteinLast7 < n.targetProtein * 0.9;
-    diet = `Averaging ${n.avgCaloriesLast7} kcal against a ${n.targetCalories} target` +
-      (Math.abs(gap) < 100 ? ", which is on the money." : gap > 0 ? `, ${gap} over per day.` : `, ${Math.abs(gap)} under per day.`) +
-      (proteinShort ? ` Protein at ${n.avgProteinLast7} g is short of ${n.targetProtein} g — that's the one to fix in a deficit.` : "");
+    diet = `Target is ${n.targetCalories} kcal and ${n.targetProtein} g protein. Weight trend is tracking close enough to the goal rate to leave it alone.`;
   }
 
   // Body
@@ -317,12 +311,12 @@ export function localBriefing(dg: CoachDigest, fallbackReason?: string): Briefin
 
   // Headline + action
   let headline: string, nextAction: string;
-  if (t.sessionsLast7 === 0 && n.daysLoggedLast7 < 3) {
+  if (t.sessionsLast7 === 0 && n.daysWeighedLast7 < 3) {
     headline = "Nothing logged this week.";
-    nextAction = "Log one workout and one day of weight and calories. That's the whole task.";
-  } else if (n.daysLoggedLast7 < 4) {
-    headline = "Training is happening, logging isn't.";
-    nextAction = `Log weight and calories for ${4 - n.daysLoggedLast7} more day${4 - n.daysLoggedLast7 === 1 ? "" : "s"} this week to make the calorie target real.`;
+    nextAction = "One workout, and step on the scale tomorrow morning. That's the whole task.";
+  } else if (n.daysWeighedLast7 < 4) {
+    headline = "Training is happening, weigh-ins aren't.";
+    nextAction = `Step on the scale ${4 - n.daysWeighedLast7} more morning${4 - n.daysWeighedLast7 === 1 ? "" : "s"} this week so the app can tell whether your calories are right.`;
   } else if (w.onTrack === "behind") {
     headline = "Consistent, but the scale isn't moving as planned.";
     nextAction = `Hold the current calories for another week before changing anything — one week of weight data is mostly water.`;
@@ -349,7 +343,7 @@ export function localBriefing(dg: CoachDigest, fallbackReason?: string): Briefin
 export function digestSignature(dg: CoachDigest): string {
   return [
     dg.training.lastSessionDate, dg.training.sessionsLast7, dg.training.lastVolume,
-    dg.nutrition.daysLoggedLast7, dg.nutrition.avgCaloriesLast7, dg.nutrition.avgProteinLast7,
+    dg.nutrition.daysWeighedLast7, dg.nutrition.suggestedDeltaKcal,
     dg.weight.avg7, dg.bodyComp.latestDate,
   ].join("|");
 }
