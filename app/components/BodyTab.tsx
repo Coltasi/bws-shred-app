@@ -81,7 +81,7 @@ export default function BodyTab() {
           subtitle={new Date(latest.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
           right={
             <button onClick={() => setDraft(emptyScan())}
-              className="text-xs text-on-accent bg-yellow-400 font-bold px-3 py-1.5 rounded-lg active:bg-yellow-300">
+              className="text-xs text-on-accent bg-yellow-400 font-bold px-3.5 py-2.5 rounded-lg active:bg-yellow-300">
               + Scan
             </button>
           }
@@ -181,7 +181,7 @@ export default function BodyTab() {
                 <span className="text-accent tabular-nums w-14 text-right text-xs">{s.bodyFatPct?.toFixed(1) ?? "—"}%</span>
                 <span className="text-good tabular-nums w-14 text-right text-xs">{s.muscleMassKg?.toFixed(1) ?? "—"}</span>
                 <button onClick={() => setDraft({ ...s })}
-                  className="ml-auto text-[11px] text-gray-500 px-2 py-1 active:text-gray-300">edit</button>
+                  className="ml-auto text-[11px] text-gray-500 px-3 py-2.5 active:text-gray-300">edit</button>
               </div>
             ))}
           </div>
@@ -299,7 +299,7 @@ function ScanEditor({ draft, onChange, onSave, onCancel, onDelete }: {
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm overflow-y-auto">
       <div className="max-w-md mx-auto min-h-full px-4 py-6">
         <div className="bg-card border border-gray-700 rounded-2xl p-4 space-y-4">
           <div className="flex items-center justify-between">

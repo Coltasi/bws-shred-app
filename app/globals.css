@@ -36,6 +36,7 @@
      Calm and clinical. Reads as a health instrument rather than a gym app. */
   --page:      #eef4f7;
   --card:      #ffffff;
+  --scrim:     rgba(13, 39, 51, .45);
 
   --s900:      #e9f1f5;   /* inputs           */
   --s800:      #dfeaf0;   /* buttons          */
@@ -77,6 +78,7 @@
      energetic, closer to a conventional training app. */
   --page:      #f2f6fb;
   --card:      #ffffff;
+  --scrim:     rgba(13, 35, 64, .45);
 
   --s900:      #edf3fa;
   --s800:      #e2ebf6;
@@ -119,6 +121,7 @@
      every other fitness tracker. */
   --page:      #f8f4f8;
   --card:      #ffffff;
+  --scrim:     rgba(30, 23, 31, .45);
 
   --s900:      #f4eef4;
   --s800:      #ece3ec;
@@ -160,6 +163,7 @@
      a low-light option for early-morning training. */
   --page:      #0a0a0f;
   --card:      #0f0f1a;
+  --scrim:     rgba(0, 0, 0, .82);
 
   --s900:      #111827;
   --s800:      #1f2937;
@@ -205,16 +209,22 @@
   --color-yellow-600: var(--accent-600);
 
   --color-green-300: var(--good-400);
+  --color-green-800: var(--good-400);
+  --color-green-900: var(--good-400);
   --color-green-400: var(--good-500);
   --color-green-500: var(--good-500);
   --color-green-600: var(--good-600);
 
   --color-red-300: var(--bad-400);
+  --color-red-800: var(--bad-400);
+  --color-red-900: var(--bad-400);
   --color-red-400: var(--bad-500);
   --color-red-500: var(--bad-500);
   --color-red-600: var(--bad-600);
 
   --color-blue-300: var(--info-400);
+  --color-blue-800: var(--info-400);
+  --color-blue-900: var(--info-400);
   --color-blue-400: var(--info-500);
   --color-blue-500: var(--info-500);
   --color-blue-600: var(--info-600);
@@ -224,6 +234,7 @@
   --color-purple-500: var(--alt-500);
   --color-purple-600: var(--alt-600);
   --color-purple-700: var(--alt-600);
+  --color-purple-800: var(--alt-400);
   --color-purple-900: var(--alt-400);
 
   --color-orange-300: var(--warn-400);
@@ -241,6 +252,7 @@
   --color-good:       var(--good-600);
   --color-bad:        var(--bad-600);
   --color-info:       var(--info-600);
+  --color-scrim:      var(--scrim);
   --color-alt:        var(--alt-600);
   --color-warn:       var(--warn-600);
 }

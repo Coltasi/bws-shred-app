@@ -53,7 +53,7 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-sm overflow-y-auto">
       <div className="max-w-md mx-auto min-h-full px-4 py-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-200">Settings</h2>

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { workouts, workoutRotation } from "../data/workouts";
 import { getItem, setItem, removeItem } from "../lib/store";
+import { getDaily, saveDay } from "../lib/data";
+import { toIso } from "../lib/nutrition";
 
 type WeightEntry    = { date: string; weight: number };
 type DailyLog       = { date: string; workoutDone: boolean; waterCount: number };
@@ -63,8 +65,18 @@ export default function ProgressTab() {
   const todayKey = getDateKey(0);
 
   useEffect(() => {
-    const saved = getItem("bws-weight-log");
-    if (saved) setWeightEntries(JSON.parse(saved));
+    // Canonical source: the daily log the Fuel tab writes. Fall back to the
+    // legacy flat array only for entries the migration hasn't picked up.
+    const fromDaily: WeightEntry[] = Object.values(getDaily())
+      .filter(d => typeof d.weightKg === "number")
+      .map(d => ({ date: new Date(d.date + "T00:00:00").toDateString(), weight: d.weightKg as number }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    if (fromDaily.length) {
+      setWeightEntries(fromDaily);
+    } else {
+      const saved = getItem("bws-weight-log");
+      if (saved) setWeightEntries(JSON.parse(saved));
+    }
 
     const savedUnit = getItem("bws-weight-unit") as "kg" | "lbs" | null;
     if (savedUnit) setWeightUnit(savedUnit);
@@ -123,14 +135,15 @@ export default function ProgressTab() {
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     setWeightEntries(updated);
-    setItem("bws-weight-log", JSON.stringify(updated));
+    saveDay(toIso(new Date()), { weightKg: val });
     setNewWeight("");
   };
 
   const removeWeight = (date: string) => {
     const updated = weightEntries.filter(e => e.date !== date);
     setWeightEntries(updated);
-    setItem("bws-weight-log", JSON.stringify(updated));
+    const d = new Date(date);
+    if (!isNaN(d.getTime())) saveDay(toIso(d), { weightKg: undefined });
   };
 
   // ── Log editing ────────────────────────────────────────────────────────────
@@ -169,28 +182,57 @@ export default function ProgressTab() {
 
   const last7 = getLast7Days();
 
+  /**
+   * Both of these used to treat Sunday and Wednesday as automatic rest days,
+   * left over from the old fixed weekly split. The rotation is flexible now, so
+   * that just credited you with two workouts a week you hadn't done — the
+   * Overview read "2/7" on a week with zero training. Count only real sessions,
+   * and let one rest day pass without breaking a streak.
+   */
   const workoutStreak = (() => {
-    let streak = 0;
-    for (let i = 0; i < 30; i++) {
-      const key     = getDateKey(i);
-      const log     = dailyLogs.find(l => l.date === key);
-      const dayOfWk = new Date(key).getDay();
-      if (dayOfWk === 0 || dayOfWk === 3) { streak++; continue; }
-      if (log?.workoutDone) streak++;
-      else break;
+    let streak = 0, gap = 0;
+    for (let i = 0; i < 60; i++) {
+      const key = getDateKey(i);
+      const done = dailyLogs.find(l => l.date === key)?.workoutDone
+        || datedLog.some(sesh => sesh.date === key);
+      if (done) { streak += 1 + gap; gap = 0; continue; }
+      if (i === 0) continue;          // today isn't over yet
+      if (gap === 0) { gap = 1; continue; }  // one rest day is allowed
+      break;
     }
     return streak;
   })();
 
-  const weeklyWorkouts = last7.filter(d => {
-    const dow = new Date(d).getDay();
-    if (dow === 0 || dow === 3) return true;
-    return dailyLogs.find(l => l.date === d)?.workoutDone;
-  }).length;
+  const weeklyWorkouts = last7.filter(d =>
+    dailyLogs.find(l => l.date === d)?.workoutDone || datedLog.some(sesh => sesh.date === d),
+  ).length;
 
-  const avgWater = dailyLogs.length > 0
-    ? Math.round(dailyLogs.slice(0, 7).reduce((s, l) => s + l.waterCount, 0) / Math.min(dailyLogs.length, 7))
-    : 0;
+  // Water tracking was removed from the Today tab, so the old "avg glasses"
+  // tile could only ever read zero. Nutrition-logging consistency is the
+  // number that actually predicts whether this works.
+  // Which of the last 14 days have a complete nutrition entry, keyed the same
+  // way the grid keys its cells.
+  const loggedDates = (() => {
+    const daily = getDaily();
+    const set = new Set<string>();
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const e = daily[toIso(d)];
+      if (e?.calories != null && e?.weightKg != null) set.add(d.toDateString());
+    }
+    return set;
+  })();
+
+  const daysLoggedLast7 = (() => {
+    const daily = getDaily();
+    let n = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const e = daily[toIso(d)];
+      if (e?.calories != null && e?.weightKg != null) n++;
+    }
+    return n;
+  })();
 
   const startWeight   = weightEntries.length > 0 ? weightEntries[0].weight : null;
   const currentWeight = weightEntries.length > 0 ? weightEntries[weightEntries.length - 1].weight : null;
@@ -220,8 +262,8 @@ export default function ProgressTab() {
       <div className="flex bg-gray-900 rounded-xl p-1 gap-0.5">
         {sections.map(s => (
           <button key={s.id} onClick={() => setActiveSection(s.id)}
-            className={`flex-1 py-2 text-[10px] font-semibold rounded-lg transition-all ${
-              activeSection === s.id ? "bg-yellow-400 text-on-accent" : "text-gray-400 hover:text-gray-300"
+            className={`flex-1 py-3 text-[10px] font-semibold rounded-lg transition-all ${
+              activeSection === s.id ? "bg-yellow-400 text-on-accent" : "text-gray-400 active:text-gray-300"
             }`}>
             {s.label}
           </button>
@@ -234,7 +276,7 @@ export default function ProgressTab() {
           <div className="grid grid-cols-2 gap-3">
             <StatBox label="Workout Streak" value={`${workoutStreak}`} unit="days"     emoji="🔥" color="orange" />
             <StatBox label="This Week"       value={`${weeklyWorkouts}/7`} unit="days" emoji="💪" color="yellow" />
-            <StatBox label="Avg Water"        value={`${avgWater}`} unit="glasses/day"  emoji="💧" color="blue"   />
+            <StatBox label="Days Logged"      value={`${daysLoggedLast7}`} unit="of last 7" emoji="📝" color="blue" />
             <StatBox
               label="Weight Change"
               value={weightChange !== null ? (weightChange <= 0 ? `${weightChange}` : `+${weightChange}`) : "—"}
@@ -253,7 +295,7 @@ export default function ProgressTab() {
                 const dayOfWk  = new Date(dateKey).getDay();
                 const isRest   = dayOfWk === 0 || dayOfWk === 3;
                 const hasWork  = isRest || log?.workoutDone;
-                const waterPct = Math.min((log?.waterCount ?? 0) / 8, 1);
+                const logged   = loggedDates.has(dateKey);
                 const d        = new Date(dateKey);
                 return (
                   <div key={dateKey} className="flex-1 flex flex-col items-center gap-1">
@@ -268,8 +310,8 @@ export default function ProgressTab() {
                     }`}>
                       {!log && !isToday ? "·" : isRest ? "🛌" : hasWork ? "✓" : "○"}
                     </div>
-                    <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-400 rounded-full" style={{ width: `${waterPct * 100}%` }} />
+                    <div className="w-full h-1 bg-gray-800 rounded-full overflow-hidden" title={logged ? "Nutrition logged" : "Not logged"}>
+                      {logged && <div className="h-full w-full bg-blue-400 rounded-full" />}
                     </div>
                     {isToday && <div className="w-1 h-1 rounded-full bg-yellow-400" />}
                   </div>
@@ -278,7 +320,7 @@ export default function ProgressTab() {
             </div>
             <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-600">
               <span>✓ workout</span>
-              <span className="text-info">— water</span>
+              <span className="text-info">— logged</span>
               <span>🛌 rest</span>
             </div>
           </div>
@@ -623,7 +665,7 @@ export default function ProgressTab() {
               <Achievement emoji="🌱" title="First Workout" desc="Log your first workout"       unlocked={dailyLogs.some(l => l.workoutDone)} />
               <Achievement emoji="🔥" title="3-Day Streak"  desc="Work out 3 days in a row"    unlocked={workoutStreak >= 3} />
               <Achievement emoji="⚡" title="7-Day Streak"  desc="Work out 7 days in a row"    unlocked={workoutStreak >= 7} />
-              <Achievement emoji="💧" title="Hydration Hero" desc="Hit 8 glasses in a day"     unlocked={dailyLogs.some(l => l.waterCount >= 8)} />
+              <Achievement emoji="📝" title="Week of Data"   desc="Log weight and calories 7 days running" unlocked={daysLoggedLast7 >= 7} />
               <Achievement emoji="🏆" title="2-Week Warrior" desc="14-day streak"              unlocked={workoutStreak >= 14} />
               <Achievement emoji="📉" title="First Drop"    desc="Lose your first pound"       unlocked={weightChange !== null && weightChange < -1} />
               <Achievement emoji="💪" title="Getting Stronger" desc="Log weights on 3 workouts" unlocked={allKeys.filter(k => historyData[k] && Object.keys(historyData[k]).length > 0).length >= 3} />
@@ -644,8 +686,8 @@ export default function ProgressTab() {
                 max={7} color="yellow"
               />
               <ProgressRow
-                label="Days Hydrated (8+ glasses)"
-                value={last7.filter(d => (dailyLogs.find(l => l.date === d)?.waterCount ?? 0) >= 8).length}
+                label="Days Logged (weight + calories)"
+                value={daysLoggedLast7}
                 max={7} color="blue"
               />
             </div>
