@@ -89,6 +89,14 @@ The key is server-side only. Anything prefixed `NEXT_PUBLIC_` is compiled into
 the client bundle and readable from devtools, which is why the route exists at
 all rather than calling the API from the phone.
 
+**Naming the key.** Any one of `bwsshredapp`, `BWS_SHRED_APP_KEY`, `BWS_SHRED_APP`,
+`BWS_COACH_API_KEY`, `COACH_ANTHROPIC_KEY`, `ANTHROPIC_API_KEY` or
+`CLAUDE_API_KEY` is picked up, in that order — the
+obvious name is often already taken by a platform integration or an org
+convention. For anything else, set `COACH_API_KEY_NAME` to the name of the
+variable holding the key. A successful response reports which variable it
+used in `keySource`; the value itself is never logged or returned.
+
 ## Development
 
 ```bash
