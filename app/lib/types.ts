@@ -42,6 +42,10 @@ export interface DailyEntry {
   carbsG?: number;
   steps?: number;
   sleepHours?: number;
+  /** Set whenever a session with at least one completed set is saved. */
+  trained?: boolean;
+  /** What the Today tab recorded, for days with no logged lift. */
+  activity?: "lift" | "swim" | "bike" | "rest";
   note?: string;
 }
 

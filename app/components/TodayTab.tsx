@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { workouts, workoutRotation } from "../data/workouts";
 import { getItem, setItem, removeItem } from "../lib/store";
+import { saveDay } from "../lib/data";
+import { todayIso } from "../lib/nutrition";
 
 type Tab = "today" | "workout" | "progress";
 type ActivityType = "lift" | "swim" | "bike" | "rest" | null;
@@ -87,7 +89,12 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
     setItem(`bws-today-${dateKey}`, JSON.stringify({ ...current, ...updates }));
   };
 
-  const selectActivity = (a: ActivityType) => { setActivity(a); persist({ activity: a }); };
+  const selectActivity = (a: ActivityType) => {
+    setActivity(a);
+    persist({ activity: a });
+    // Mirror into the daily log so Stats sees non-lifting activity as well.
+    if (a) saveDay(todayIso(), { activity: a, trained: a === "swim" || a === "bike" ? true : undefined });
+  };
 
   const adjustSleep = (delta: number) => {
     const current = sleepHours ?? 7;
@@ -101,6 +108,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
     setWorkoutDone(updated);
     if (updated) { const next = advanceRotation(); setRotationIdx(next); }
     persist({ workoutDone: updated });
+    saveDay(todayIso(), { trained: updated || undefined });
   };
 
   const addSteps = (n: number) => {
