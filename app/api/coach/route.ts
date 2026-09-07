@@ -19,6 +19,43 @@ export const dynamic = "force-dynamic";
 
 const MODEL = process.env.COACH_MODEL || "claude-haiku-4-5-20251001";
 
+/**
+ * Accepted names for the Anthropic key, in priority order.
+ *
+ * More than one because the obvious name is often already taken: Vercel's AI
+ * integrations provision their own ANTHROPIC_API_KEY, some orgs prefix
+ * everything, and a project may already use that variable for something else.
+ * Set whichever suits and the route finds it.
+ *
+ * COACH_API_KEY_NAME is the escape hatch: set it to the name of another
+ * variable and that one is read instead. Nothing here is ever sent to the
+ * client — only the name is ever logged, never the value.
+ */
+const KEY_NAMES = [
+  // Environment variable names are case-sensitive, so both spellings are here.
+  "bwsshredapp",
+  "BWSSHREDAPP",
+  "BWS_SHRED_APP_KEY",
+  "BWS_SHRED_APP",
+  "BWS_COACH_API_KEY",
+  "COACH_ANTHROPIC_KEY",
+  "ANTHROPIC_API_KEY",
+  "CLAUDE_API_KEY",
+] as const;
+
+function resolveApiKey(): { key: string; via: string } | null {
+  const custom = process.env.COACH_API_KEY_NAME;
+  if (custom) {
+    const v = process.env[custom];
+    if (v) return { key: v, via: custom };
+  }
+  for (const name of KEY_NAMES) {
+    const v = process.env[name];
+    if (v) return { key: v, via: name };
+  }
+  return null;
+}
+
 const SYSTEM = `You are a strength and nutrition coach reading a client's training and body-composition data. You write the short post-workout briefing in their app.
 
 Rules:
@@ -37,13 +74,18 @@ Lengths: headline under 60 characters, a blunt verdict. lifting/diet/body one or
 interface Payload { digest?: unknown }
 
 export async function POST(request: Request) {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
+  const resolved = resolveApiKey();
+  if (!resolved) {
     return Response.json(
-      { error: "not-configured", message: "ANTHROPIC_API_KEY is not set on the server." },
+      {
+        error: "not-configured",
+        message: `No API key found. Set one of: ${KEY_NAMES.join(", ")} — or set COACH_API_KEY_NAME to the name of the variable holding it.`,
+        accepts: KEY_NAMES,
+      },
       { status: 503 },
     );
   }
+  const key = resolved.key;
 
   let digest: unknown;
   try {
@@ -115,6 +157,8 @@ export async function POST(request: Request) {
     return Response.json({
       briefing,
       model: MODEL,
+      // The variable name, never the value — useful when several are in play.
+      keySource: resolved.via,
       usage: { input: res.usage.input_tokens, output: res.usage.output_tokens },
     });
   } catch (e) {

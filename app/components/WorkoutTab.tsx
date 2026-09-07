@@ -6,6 +6,8 @@ import {
   type Exercise,
 } from "../data/workouts";
 import { getItem, setItem, removeItem } from "../lib/store";
+import { saveDay } from "../lib/data";
+import { toIso } from "../lib/nutrition";
 
 // ── Confetti ───────────────────────────────────────────────────────────────
 function Confetti({ onDone }: { onDone: () => void }) {
@@ -111,20 +113,30 @@ function loadSession(k: string): ExerciseLog {
 }
 function saveSession(k: string, log: ExerciseLog, meta?: { name: string; emoji: string }) {
   setItem(sessionKey(k), JSON.stringify({ date: new Date().toDateString(), log }));
+
+  // A session counts as done when any set is ticked. It used to require a
+  // typed weight, which meant every bodyweight movement — halos, push-ups,
+  // planks, scapular pull-ups — left no trace anywhere, and the Stats tab
+  // reported zero workouts on a week you had actually trained.
+  const anyDone   = Object.values(log).some(sets => sets.some(s => s.done));
   const hasWeight = Object.values(log).some(sets => sets.some(s => s.weight.trim() !== ""));
-  if (hasWeight) {
-    setItem(historyKey(k), JSON.stringify(log));
-    if (meta) {
-      try {
-        const all: WorkoutSession[] = JSON.parse(getItem(DATED_LOG_KEY) || "[]");
-        const today = new Date().toDateString();
-        const without = all.filter(s => !(s.date === today && s.key === k));
-        setItem(DATED_LOG_KEY, JSON.stringify([
-          ...without,
-          { date: today, key: k, name: meta.name, emoji: meta.emoji, log },
-        ]));
-      } catch { /* ignore */ }
-    }
+
+  if (hasWeight) setItem(historyKey(k), JSON.stringify(log));
+
+  if (anyDone && meta) {
+    try {
+      const all: WorkoutSession[] = JSON.parse(getItem(DATED_LOG_KEY) || "[]");
+      const today = new Date().toDateString();
+      const without = all.filter(s => !(s.date === today && s.key === k));
+      setItem(DATED_LOG_KEY, JSON.stringify([
+        ...without,
+        { date: today, key: k, name: meta.name, emoji: meta.emoji, log, modality: MODALITY[k] ?? "other" },
+      ]));
+    } catch { /* ignore */ }
+
+    // Mirror into the daily log so the Stats tab, the Coach digest and the
+    // Today tab all agree about which days you trained.
+    saveDay(toIso(new Date()), { trained: true, activity: "lift" });
   }
 }
 function loadHistory(k: string): ExerciseLog {
@@ -738,8 +750,10 @@ export default function WorkoutTab() {
                                   onClick={e => e.stopPropagation()}
                                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-center text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500/50" />
                                 <button onClick={() => toggleDone(ex, setIdx)}
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all ${
-                                    setData.done ? "bg-green-500 text-gray-200" : "bg-gray-700 text-gray-500 hover:bg-gray-600"
+                                  aria-label={setData.done ? `Set ${setIdx + 1} done` : `Mark set ${setIdx + 1} done`}
+                                  aria-pressed={setData.done}
+                                  className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center text-base transition-all ${
+                                    setData.done ? "bg-green-500 text-gray-200" : "bg-gray-700 text-gray-500 active:bg-gray-600"
                                   }`}>{setData.done ? "✓" : "·"}</button>
                               </div>
                               {prev?.weight && (

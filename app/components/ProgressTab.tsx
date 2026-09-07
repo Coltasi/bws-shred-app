@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { workouts, workoutRotation } from "../data/workouts";
-import { getItem, setItem, removeItem } from "../lib/store";
-import { getDaily, saveDay } from "../lib/data";
+import { getItem, setItem, removeItem, getJSON } from "../lib/store";
+import { getDaily, saveDay, scanList } from "../lib/data";
 import { toIso } from "../lib/nutrition";
 
 type WeightEntry    = { date: string; weight: number };
@@ -50,7 +50,7 @@ export default function ProgressTab() {
   const [weightEntries, setWeightEntries]     = useState<WeightEntry[]>([]);
   const [newWeight, setNewWeight]             = useState("");
   const [dailyLogs, setDailyLogs]             = useState<DailyLog[]>([]);
-  const [activeSection, setActiveSection]     = useState<"overview" | "weight" | "strength" | "log" | "streak">("overview");
+  const [activeSection, setActiveSection]     = useState<"overview" | "weight" | "strength" | "log" | "body" | "streak">("overview");
   const [selectedWorkout, setSelectedWorkout] = useState<string>("Upper");
   const [historyData, setHistoryData]         = useState<Record<string, ExerciseLog>>({});
   const [weightUnit, setWeightUnit]           = useState<"kg" | "lbs">("kg");
@@ -81,14 +81,27 @@ export default function ProgressTab() {
     const savedUnit = getItem("bws-weight-unit") as "kg" | "lbs" | null;
     if (savedUnit) setWeightUnit(savedUnit);
 
+    const allDaily = getDaily();
+    const loggedSessionDays = new Set(
+      getJSON<WorkoutSession[]>(DATED_LOG_KEY, []).map(x => x.date),
+    );
     const logs: DailyLog[] = [];
     for (let i = 0; i < 14; i++) {
       const key = getDateKey(i);
       const raw = getItem(`bws-today-${key}`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        logs.push({ date: key, workoutDone: parsed.workoutDone || false, waterCount: parsed.water || 0 });
+      if (loggedSessionDays.has(key) && !allDaily[toIso(new Date(key))]?.trained) {
+        // Session recorded before the daily flag existed — still counts.
+        logs.push({ date: key, workoutDone: true, waterCount: 0 });
+        continue;
       }
+      const isoDay = toIso(new Date(key));
+      const fromDaily = allDaily[isoDay];
+      const parsed = raw ? JSON.parse(raw) : {};
+      // A day counts as trained if a session was logged in the Train tab, if the
+      // daily log says so, or if the Today tab's manual toggle was used. Before
+      // this, only the last of those three counted.
+      const trained = Boolean(fromDaily?.trained) || Boolean(parsed.workoutDone);
+      if (raw || fromDaily) logs.push({ date: key, workoutDone: trained, waterCount: 0 });
     }
     setDailyLogs(logs);
 
@@ -182,6 +195,12 @@ export default function ProgressTab() {
 
   const last7 = getLast7Days();
 
+  // Body composition, read from the same store the Body tab writes.
+  const bodyScans      = scanList();
+  const latestBodyScan = bodyScans.length ? bodyScans[bodyScans.length - 1] : null;
+  const firstBodyScan  = bodyScans[0] ?? null;
+  const prevBodyScan   = bodyScans.length > 1 ? bodyScans[bodyScans.length - 2] : null;
+
   /**
    * Both of these used to treat Sunday and Wednesday as automatic rest days,
    * left over from the old fixed weekly split. The rotation is flexible now, so
@@ -247,6 +266,7 @@ export default function ProgressTab() {
     { id: "weight",    label: "Weight"    },
     { id: "strength",  label: "Strength"  },
     { id: "log",       label: "Log"       },
+    { id: "body",      label: "Body"      },
     { id: "streak",    label: "Streak"    },
   ] as const;
 
@@ -285,6 +305,31 @@ export default function ProgressTab() {
               color={weightChange !== null && weightChange < 0 ? "green" : "gray"}
             />
           </div>
+
+          {latestBodyScan && (
+            <div className="bg-card border border-gray-800 rounded-2xl p-4">
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="font-bold text-gray-200 text-sm">Body composition</h3>
+                <span className="text-[10px] text-gray-500">
+                  {new Date(latestBodyScan.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <MiniStat label="Body fat" value={latestBodyScan.bodyFatPct?.toFixed(1) ?? "—"} unit="%" tone="yellow" />
+                <MiniStat label="Fat mass" value={latestBodyScan.fatMassKg?.toFixed(1) ?? "—"} unit="kg" tone="red" />
+                <MiniStat label="Muscle"   value={latestBodyScan.muscleMassKg?.toFixed(1) ?? "—"} unit="kg" tone="green" />
+              </div>
+              {prevBodyScan && (
+                <div className="mt-3 pt-3 border-t border-gray-800 space-y-2">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">
+                    Since {new Date(prevBodyScan.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  </p>
+                  <ScanDelta label="Fat mass" from={prevBodyScan.fatMassKg} to={latestBodyScan.fatMassKg} goodDown />
+                  <ScanDelta label="Muscle"   from={prevBodyScan.muscleMassKg} to={latestBodyScan.muscleMassKg} />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="bg-card border border-gray-800 rounded-2xl p-4">
             <h3 className="font-bold text-gray-200 text-sm mb-3">Last 7 Days</h3>
@@ -651,6 +696,64 @@ export default function ProgressTab() {
       )}
 
       {/* ── STREAK ── */}
+      {activeSection === "body" && (
+        <>
+          {bodyScans.length === 0 ? (
+            <div className="bg-card border border-gray-800 rounded-2xl p-4">
+              <p className="text-xs text-gray-400">No Tanita scans yet. Add one on the Body tab.</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-card border border-gray-800 rounded-2xl p-4">
+                <h3 className="font-bold text-gray-200 text-sm mb-1">Latest scan</h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  {new Date(latestBodyScan!.date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <MiniStat label="Weight"  value={latestBodyScan!.weightKg.toFixed(1)} unit="kg" />
+                  <MiniStat label="Body fat" value={latestBodyScan!.bodyFatPct?.toFixed(1) ?? "—"} unit="%" tone="yellow" />
+                  <MiniStat label="Fat mass" value={latestBodyScan!.fatMassKg?.toFixed(1) ?? "—"} unit="kg" tone="red" />
+                  <MiniStat label="Muscle"  value={latestBodyScan!.muscleMassKg?.toFixed(1) ?? "—"} unit="kg" tone="green" />
+                  <MiniStat label="Water"   value={latestBodyScan!.bodyWaterPct?.toFixed(1) ?? "—"} unit="%" tone="blue" />
+                  <MiniStat label="Visceral" value={latestBodyScan!.visceralFat ?? "—"} tone="green" />
+                </div>
+              </div>
+
+              {firstBodyScan && firstBodyScan !== latestBodyScan && (
+                <div className="bg-card border border-gray-800 rounded-2xl p-4">
+                  <h3 className="font-bold text-gray-200 text-sm mb-3">
+                    Since {new Date(firstBodyScan.date).toLocaleDateString("en-GB", { month: "short", year: "2-digit" })}
+                  </h3>
+                  <div className="space-y-2">
+                    <ScanDelta label="Fat mass" from={firstBodyScan.fatMassKg} to={latestBodyScan!.fatMassKg} goodDown />
+                    <ScanDelta label="Muscle"   from={firstBodyScan.muscleMassKg} to={latestBodyScan!.muscleMassKg} />
+                    <ScanDelta label="Weight"   from={firstBodyScan.weightKg} to={latestBodyScan!.weightKg} goodDown />
+                    <ScanDelta label="Body fat %" from={firstBodyScan.bodyFatPct} to={latestBodyScan!.bodyFatPct} goodDown unit="%" />
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-card border border-gray-800 rounded-2xl p-4">
+                <h3 className="font-bold text-gray-200 text-sm mb-3">All scans</h3>
+                <div className="space-y-1.5">
+                  {[...bodyScans].reverse().map(sc => (
+                    <div key={sc.date} className="flex items-center gap-2 text-sm py-0.5">
+                      <span className="text-gray-400 text-xs w-20 shrink-0">
+                        {new Date(sc.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}
+                      </span>
+                      <span className="text-gray-200 tabular-nums w-14 text-right">{sc.weightKg.toFixed(1)}</span>
+                      <span className="text-accent tabular-nums w-14 text-right text-xs">{sc.bodyFatPct?.toFixed(1) ?? "—"}%</span>
+                      <span className="text-good tabular-nums w-14 text-right text-xs">{sc.muscleMassKg?.toFixed(1) ?? "—"}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-600 mt-2">date · weight · body fat · muscle</p>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
       {activeSection === "streak" && (
         <>
           <div className="bg-gradient-to-br from-orange-500/10 to-yellow-500/5 border border-orange-500/20 rounded-2xl p-5 text-center">
@@ -743,6 +846,43 @@ function ProgressRow({ label, value, max, color }: { label: string; value: numbe
       <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${colorMap[color]} transition-all`} style={{ width: `${pct}%` }} />
       </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, unit, tone = "gray" }: {
+  label: string; value: string | number; unit?: string;
+  tone?: "gray" | "green" | "yellow" | "red" | "blue";
+}) {
+  const tones: Record<string, string> = {
+    gray:   "text-gray-300 bg-gray-800/50 border-gray-700/40",
+    green:  "text-good bg-green-400/10 border-green-500/25",
+    yellow: "text-accent bg-yellow-400/10 border-yellow-500/25",
+    red:    "text-bad bg-red-400/10 border-red-500/25",
+    blue:   "text-info bg-blue-400/10 border-blue-500/25",
+  };
+  return (
+    <div className={`rounded-xl p-3 border text-center ${tones[tone]}`}>
+      <p className="text-lg font-black leading-tight tabular-nums">
+        {value}{unit && <span className="text-[11px] font-medium opacity-70 ml-0.5">{unit}</span>}
+      </p>
+      <p className="text-[9px] text-gray-400 mt-1 uppercase tracking-wide">{label}</p>
+    </div>
+  );
+}
+
+function ScanDelta({ label, from, to, goodDown = false, unit = "kg" }: {
+  label: string; from?: number; to?: number; goodDown?: boolean; unit?: string;
+}) {
+  if (typeof from !== "number" || typeof to !== "number") return null;
+  const d = Math.round((to - from) * 10) / 10;
+  const good = goodDown ? d < 0 : d > 0;
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-gray-400">{label}</span>
+      <span className={`font-bold tabular-nums ${Math.abs(d) < 0.05 ? "text-gray-500" : good ? "text-good" : "text-bad"}`}>
+        {d > 0 ? "+" : ""}{d} {unit}
+      </span>
     </div>
   );
 }
