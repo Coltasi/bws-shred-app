@@ -141,7 +141,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
     <div className="px-4 py-4 space-y-5">
 
       {/* Greeting + Progress */}
-      <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/10 border border-yellow-500/30 rounded-2xl p-4">
+      <div className="bg-gradient-to-br from-yellow-400/20 to-yellow-300/10 border border-yellow-500/30 rounded-2xl p-4">
         <p className="text-sm text-accent/70">{greeting}, Colin</p>
         <h2 className="text-xl font-bold text-gray-200 mt-1">
           {activity ? `${activeActivity?.label} Day` : "What are you doing today?"}
@@ -155,7 +155,7 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
             <span className="text-accent font-bold">{progress}%</span>
           </div>
           <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full transition-all duration-500"
+            <div className="h-full bg-gradient-to-r from-yellow-400 to-yellow-300 rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }} />
           </div>
         </div>
@@ -170,12 +170,12 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => adjustSleep(-0.5)}
-              className="w-8 h-8 rounded-lg bg-gray-800 text-gray-300 text-lg font-bold hover:bg-gray-700 flex items-center justify-center">−</button>
+              className="w-11 h-11 rounded-xl bg-gray-800 text-gray-300 text-lg font-bold active:bg-gray-700 flex items-center justify-center">−</button>
             <span className="text-xl font-bold text-gray-200 min-w-[52px] text-center">
               {sleepHours !== null ? `${sleepHours}h` : "—"}
             </span>
             <button onClick={() => adjustSleep(0.5)}
-              className="w-8 h-8 rounded-lg bg-gray-800 text-gray-300 text-lg font-bold hover:bg-gray-700 flex items-center justify-center">+</button>
+              className="w-11 h-11 rounded-xl bg-gray-800 text-gray-300 text-lg font-bold active:bg-gray-700 flex items-center justify-center">+</button>
           </div>
         </div>
         {sleepHours !== null && (
@@ -220,20 +220,20 @@ export default function TodayTab({ onNavigate }: TodayTabProps) {
           {STEP_INCREMENTS.map(n => (
             <button key={n}
               onClick={() => addSteps(n)}
-              className="flex-1 py-2 rounded-xl bg-gray-800 text-gray-300 text-xs font-semibold hover:bg-gray-700 transition-all">
+              className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-300 text-xs font-semibold active:bg-gray-700 transition-all">
               +{n.toLocaleString()}
             </button>
           ))}
           <button
             onClick={() => setShowStepInput(!showStepInput)}
-            className="py-2 px-3 rounded-xl bg-gray-800 text-gray-400 text-xs font-semibold hover:bg-gray-700"
+            className="py-3 px-3.5 rounded-xl bg-gray-800 text-gray-400 text-xs font-semibold active:bg-gray-700"
           >
             Set
           </button>
           {steps > 0 && (
             <button
               onClick={() => { setSteps(0); persist({ steps: 0 }); }}
-              className="py-2 px-3 rounded-xl bg-gray-900 text-gray-600 text-xs hover:text-gray-400"
+              className="py-3 px-3.5 rounded-xl bg-gray-900 text-gray-600 text-xs active:text-gray-400"
             >
               ↺
             </button>

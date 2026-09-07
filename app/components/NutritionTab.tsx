@@ -88,9 +88,9 @@ export default function NutritionTab() {
         right={
           <div className="flex gap-1">
             <button onClick={() => setOffset(o => Math.min(o + 1, 30))}
-              className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 text-sm active:bg-gray-700">‹</button>
+              className="w-10 h-10 rounded-lg bg-gray-800 text-gray-400 text-sm active:bg-gray-700">‹</button>
             <button onClick={() => setOffset(o => Math.max(o - 1, 0))} disabled={offset === 0}
-              className="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 text-sm active:bg-gray-700 disabled:opacity-30">›</button>
+              className="w-10 h-10 rounded-lg bg-gray-800 text-gray-400 text-sm active:bg-gray-700 disabled:opacity-30">›</button>
           </div>
         }
       >
@@ -116,7 +116,7 @@ export default function NutritionTab() {
             <div className="flex gap-2 mt-2">
               {QUICK_CALS.map(n => (
                 <button key={n} onClick={() => setCalories((entry.calories ?? 0) + n)}
-                  className="flex-1 py-2 rounded-xl bg-gray-800 text-gray-300 text-xs font-semibold active:bg-gray-700">
+                  className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-300 text-xs font-semibold active:bg-gray-700">
                   +{n}
                 </button>
               ))}
